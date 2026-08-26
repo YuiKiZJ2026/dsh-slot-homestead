@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 
 import { execFileSync } from "node:child_process";
-import { rmSync, renameSync } from "node:fs";
+import { readFileSync, rmSync, renameSync } from "node:fs";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -125,6 +125,62 @@ export function validateArchiveEntries(entries, includedPaths, prefix) {
   }
 }
 
+export function readZipEntries(path) {
+  const archive = readFileSync(path);
+  const minimumEocdSize = 22;
+  const maximumCommentSize = 65_535;
+  const earliestEocd = Math.max(0, archive.length - minimumEocdSize - maximumCommentSize);
+  let eocd = -1;
+
+  for (let offset = archive.length - minimumEocdSize; offset >= earliestEocd; offset -= 1) {
+    if (
+      archive.readUInt32LE(offset) === 0x06054b50 &&
+      offset + minimumEocdSize + archive.readUInt16LE(offset + 20) === archive.length
+    ) {
+      eocd = offset;
+      break;
+    }
+  }
+  if (eocd < 0) throw new Error("Source archive has no valid ZIP end record");
+
+  const disk = archive.readUInt16LE(eocd + 4);
+  const centralDisk = archive.readUInt16LE(eocd + 6);
+  const diskEntries = archive.readUInt16LE(eocd + 8);
+  const entryCount = archive.readUInt16LE(eocd + 10);
+  const centralSize = archive.readUInt32LE(eocd + 12);
+  const centralOffset = archive.readUInt32LE(eocd + 16);
+  if (
+    disk !== 0 || centralDisk !== 0 || diskEntries !== entryCount ||
+    entryCount === 0xffff || centralSize === 0xffffffff || centralOffset === 0xffffffff
+  ) {
+    throw new Error("Source archive uses unsupported multi-disk or ZIP64 metadata");
+  }
+  if (centralOffset + centralSize > eocd) {
+    throw new Error("Source archive central directory is outside the ZIP payload");
+  }
+
+  const entries = [];
+  let offset = centralOffset;
+  for (let index = 0; index < entryCount; index += 1) {
+    if (offset + 46 > archive.length || archive.readUInt32LE(offset) !== 0x02014b50) {
+      throw new Error(`Invalid ZIP central directory entry ${index}`);
+    }
+    const nameLength = archive.readUInt16LE(offset + 28);
+    const extraLength = archive.readUInt16LE(offset + 30);
+    const commentLength = archive.readUInt16LE(offset + 32);
+    const nextOffset = offset + 46 + nameLength + extraLength + commentLength;
+    if (nextOffset > archive.length) {
+      throw new Error(`Truncated ZIP central directory entry ${index}`);
+    }
+    entries.push(archive.subarray(offset + 46, offset + 46 + nameLength).toString("utf8"));
+    offset = nextOffset;
+  }
+  if (offset !== centralOffset + centralSize) {
+    throw new Error("Source archive central directory size does not match its entries");
+  }
+  return entries;
+}
+
 function assertSafeRepositoryPath(path) {
   const segments = path.split("/");
   if (
@@ -169,10 +225,7 @@ function main() {
     git(root, sourceArchiveArguments(commit, prefix, temporary, included), {
       encoding: null,
     });
-    const entries = execFileSync("unzip", ["-Z1", temporary], {
-      encoding: "utf8",
-      maxBuffer: 16 * 1_024 * 1_024,
-    }).split(/\r?\n/).filter(Boolean);
+    const entries = readZipEntries(temporary);
     validateArchiveEntries(entries, included, prefix);
     rmSync(output, { force: true });
     renameSync(temporary, output);

@@ -80,7 +80,7 @@ npm run test:e2e
 npm run build:source
 ```
 
-该命令需要 Git 与 `unzip`，只从已提交的 `HEAD` 读取严格 allowlist 内的源码、测试、配置和
+该命令只需要 Git 与 Node.js，只从已提交的 `HEAD` 读取严格 allowlist 内的源码、测试、配置和
 文档，并生成 `../dsh-desktop-slot-widget-0.2.0-source.zip`，归档前缀为
 `dsh-desktop-slot-widget-0.2.0/`。工作树改动不会混入归档；根 `.superpowers/`、
 `.research/`、`node_modules/`、生成的根 `lib/`、`assets/`、tgz、`test-results/`、`tmp/`

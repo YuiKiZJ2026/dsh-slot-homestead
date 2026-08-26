@@ -118,5 +118,6 @@ describe("release source archive", () => {
     expect(source).toContain('`${commit}:package.json`');
     expect(source).not.toMatch(/\["rev-parse", "HEAD"\]|"archive"[\s\S]*?"HEAD"/);
     expect(source).toContain('resolve(root, "..", archiveName)');
+    expect(source).not.toContain('execFileSync("unzip"');
   });
 });
