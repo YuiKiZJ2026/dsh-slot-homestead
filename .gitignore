@@ -1,0 +1,14 @@
+node_modules/
+dist/
+coverage/
+playwright-report/
+test-results/
+tmp/
+/.plugin-build/
+/assets/
+/lib/
+/*.tgz
+/.dsh-*/
+public/assets/*-source.png
+.research/
+.superpowers/

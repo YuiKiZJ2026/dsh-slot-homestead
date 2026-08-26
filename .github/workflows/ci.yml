@@ -1,0 +1,85 @@
+name: CI
+
+on:
+  push:
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  package:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        node: ["22.22.2", "24.15.0", "26"]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ matrix.node }}
+          cache: npm
+      - run: npm ci --legacy-peer-deps
+      - run: npm run typecheck
+      - run: npm run test:unit
+      - run: npm run build
+      - run: npm run test:package
+
+  coverage:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "24.15.0"
+          cache: npm
+      - run: npm ci --legacy-peer-deps
+      - run: npm run test:coverage
+
+  real-dsh-smoke:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "24.15.0"
+          cache: npm
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 11.7.0
+      - run: npm ci --legacy-peer-deps
+      - name: Install pinned official DSH CLI
+        run: pnpm add --global @deepseek-ai/dsh@0.1.1-rc.2
+      - run: dsh --version
+      - name: Build installable plugin package
+        run: npm run build
+      - name: Install, boot, restart, persist, and remove in real DSH Web
+        run: node scripts/dsh-real-smoke.mjs --dsh dsh --tgz ./dsh-desktop-slot-widget-0.2.0.tgz
+
+  windows-visual:
+    runs-on: windows-2022
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "24.15.0"
+          cache: npm
+      - run: npm ci --legacy-peer-deps
+      - run: npm run typecheck
+      - run: npm run test:unit
+      - run: npm run build
+      - run: npm run test:package
+      - run: npx playwright install chromium
+      - name: Functional browser E2E
+        run: npx playwright test tests/app-flow.spec.ts tests/native-preview.spec.ts --project=chromium
+      - name: Windows visual baselines
+        run: npm run test:visual
+      - name: Upload Playwright failure artifacts
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-test-results-windows
+          path: test-results
+          if-no-files-found: ignore
