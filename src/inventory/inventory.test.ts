@@ -4,6 +4,7 @@ import {
   buyCollectible,
   hasStarryNightTheme,
   settleActiveSpin,
+  setCollectiblePlacement,
   setCollectibleDisplayed,
 } from "./inventory";
 
@@ -20,9 +21,36 @@ describe("inventory and shop", () => {
     const twice = settleActiveSpin(once, "spin-1");
 
     expect(once.ownedCollectibles).toEqual(["plant"]);
-    expect(once.displayedCollectibles).toEqual(["plant"]);
+    expect(once.displayedCollectibles).toEqual([]);
+    expect(once.tablePlacements).toEqual([]);
     expect(once.activeSpin?.stage).toBe("settled");
     expect(twice).toBe(once);
+  });
+
+  it("keeps rewards in the collection box and atomically replaces an occupied table position", () => {
+    const state = createInitialState();
+    state.ownedCollectibles = ["plant", "crystal"];
+
+    const placed = setCollectiblePlacement(state, "plant", "left-front-round");
+    expect(placed.tablePlacements).toEqual([
+      { itemId: "plant", positionId: "left-front-round" },
+    ]);
+    expect(placed.displayedCollectibles).toEqual(["plant"]);
+
+    const replaced = setCollectiblePlacement(placed, "crystal", "left-front-round");
+    expect(replaced.tablePlacements).toEqual([
+      { itemId: "crystal", positionId: "left-front-round" },
+    ]);
+    expect(replaced.displayedCollectibles).toEqual(["crystal"]);
+
+    const moved = setCollectiblePlacement(placed, "plant", "right-rear-round");
+    expect(moved.tablePlacements).toEqual([
+      { itemId: "plant", positionId: "right-rear-round" },
+    ]);
+
+    const stored = setCollectiblePlacement(moved, "plant", null);
+    expect(stored.tablePlacements).toEqual([]);
+    expect(stored.displayedCollectibles).toEqual([]);
   });
 
   it("pays duplicate conversion and bonus coins", () => {
@@ -128,7 +156,7 @@ describe("inventory and shop", () => {
     expect(state).toMatchObject({ wallet: 5, ownedCollectibles: [], displayedCollectibles: [] });
   });
 
-  it("fills but does not exceed twelve ordered display slots", () => {
+  it("keeps a purchased collectible in the box without disturbing existing display slots", () => {
     const state = createInitialState();
     state.wallet = 30;
     state.ownedCollectibles = [
@@ -141,11 +169,12 @@ describe("inventory and shop", () => {
 
     expect(bought.ok).toBe(true);
     if (!bought.ok) return;
-    expect(bought.state.displayedCollectibles).toHaveLength(12);
+    expect(bought.state.displayedCollectibles).toHaveLength(11);
     expect(bought.state.displayedCollectibles).toEqual([
       "plant", "book-stand", "desk-clock", "warm-mug", "toolbox", "paper-lantern",
-      "crystal", "moon-lamp", "mini-robot", "star-projector", "constellation-globe", "comet-badge",
+      "crystal", "moon-lamp", "mini-robot", "star-projector", "constellation-globe",
     ]);
+    expect(bought.state.ownedCollectibles).toContain("comet-badge");
   });
 
   it("adds the twelfth unique item when legacy slots contain a duplicate", () => {

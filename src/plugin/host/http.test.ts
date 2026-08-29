@@ -2,11 +2,17 @@ import { describe, expect, it, vi } from "vitest";
 import type { CommandRequest, PublicSnapshot } from "../shared/contracts";
 import {
   COMMAND_PATH,
+  COMPANION_SCRIPT_PATH,
+  COMPANION_WINDOW_PATH,
   handleCommandRequest,
   handleStateRequest,
+  companionRoute,
+  companionScriptRoute,
+  companionWindowRoute,
   stateRoute,
   commandRoute,
   STATE_PATH,
+  COMPANION_PATH,
 } from "./http";
 
 const snapshot: PublicSnapshot = {
@@ -51,12 +57,48 @@ const command: CommandRequest = {
   issuedAt: "2026-08-26T04:00:00.000Z",
 };
 
+async function invokeRoute(route: ReturnType<typeof companionWindowRoute>, request: Request) {
+  let status = 0;
+  let headers: Record<string, string> = {};
+  let body = "";
+  await route.handler(request, {
+    writeHead(nextStatus, nextHeaders = {}) {
+      status = nextStatus;
+      headers = nextHeaders;
+    },
+    end(nextBody = "") { body = nextBody; },
+  });
+  return { status, headers, body };
+}
+
 describe("host HTTP boundary", () => {
-  it("registers only the two fixed exact route paths", () => {
+  it("registers only fixed exact route paths", () => {
     expect(stateRoute(service)).toMatchObject({ kind: "exact", path: STATE_PATH });
     expect(commandRoute(service)).toMatchObject({ kind: "exact", path: COMMAND_PATH });
+    expect(companionRoute(() => "active")).toMatchObject({ kind: "exact", path: COMPANION_PATH });
+    expect(companionWindowRoute()).toMatchObject({ kind: "exact", path: COMPANION_WINDOW_PATH });
+    expect(companionScriptRoute(() => "window.__slotLoaded = true"))
+      .toMatchObject({ kind: "exact", path: COMPANION_SCRIPT_PATH });
     expect(STATE_PATH).toBe("/api/dsh-slot-widget/state");
     expect(COMMAND_PATH).toBe("/api/dsh-slot-widget/command");
+    expect(COMPANION_PATH).toBe("/api/dsh-slot-widget/companion");
+    expect(COMPANION_WINDOW_PATH).toBe("/api/dsh-slot-widget/window");
+    expect(COMPANION_SCRIPT_PATH).toBe("/api/dsh-slot-widget/companion.js");
+  });
+
+  it("serves the companion from the Host origin with a locked-down page and script", async () => {
+    const page = await invokeRoute(companionWindowRoute(),
+      new Request(url(`${COMPANION_WINDOW_PATH}?apiBase=http%3A%2F%2F127.0.0.1%3A4312`), {
+        headers: trustedHeaders(),
+      }));
+    expect(page.status).toBe(200);
+    expect(page.headers["content-security-policy"]).toContain("connect-src 'self'");
+    expect(page.body).toContain(`<script src="${COMPANION_SCRIPT_PATH}"></script>`);
+
+    const script = await invokeRoute(companionScriptRoute(() => "window.__slotLoaded = true"),
+      new Request(url(COMPANION_SCRIPT_PATH), { headers: trustedHeaders() }));
+    expect(script).toMatchObject({ status: 200, body: "window.__slotLoaded = true" });
+    expect(script.headers["content-type"]).toContain("text/javascript");
   });
 
   it("returns a state projection only for GET with exactly one sessionId", async () => {
@@ -135,6 +177,87 @@ describe("host HTTP boundary", () => {
 
     expect(response.status).toBe(200);
     expect(await response.json()).toEqual({ snapshot });
+  });
+
+  it("allows the sandboxed file companion through a narrow null-origin CORS boundary", async () => {
+    const headers = {
+      host: "127.0.0.1:4312",
+      origin: "null",
+      "sec-fetch-site": "cross-site",
+    };
+    const stateResponse = await handleStateRequest(
+      new Request(url(`${STATE_PATH}?sessionId=desktop-companion`), { headers }),
+      service,
+    );
+    expect(stateResponse.status).toBe(200);
+    expect(stateResponse.headers.get("access-control-allow-origin")).toBe("null");
+
+    const preflight = await handleCommandRequest(new Request(url(COMMAND_PATH), {
+      method: "OPTIONS",
+      headers: {
+        ...headers,
+        "access-control-request-method": "POST",
+        "access-control-request-headers": "content-type",
+      },
+    }), service);
+    expect(preflight.status).toBe(204);
+    expect(preflight.headers.get("access-control-allow-origin")).toBe("null");
+    expect(preflight.headers.get("access-control-allow-methods")).toContain("POST");
+    expect(preflight.headers.get("access-control-allow-headers")).toBe("content-type");
+
+    const electronRequest = await handleStateRequest(
+      new Request(url(`${STATE_PATH}?sessionId=desktop-companion`), {
+        headers: { ...headers, "sec-fetch-site": "same-origin" },
+      }),
+      service,
+    );
+    expect(electronRequest.status).toBe(200);
+  });
+
+  it("accepts Electron's file origin serialization for companion reads and command preflights", async () => {
+    const headers = {
+      host: "127.0.0.1:4312",
+      origin: "file://",
+      "sec-fetch-site": "cross-site",
+    };
+    const stateResponse = await handleStateRequest(
+      new Request(url(`${STATE_PATH}?sessionId=desktop-companion`), { headers }),
+      service,
+    );
+    expect(stateResponse.status).toBe(200);
+    expect(stateResponse.headers.get("access-control-allow-origin")).toBe("file://");
+
+    const preflight = await handleCommandRequest(new Request(url(COMMAND_PATH), {
+      method: "OPTIONS",
+      headers: {
+        ...headers,
+        "access-control-request-method": "POST",
+        "access-control-request-headers": "content-type",
+      },
+    }), service);
+    expect(preflight.status).toBe(204);
+    expect(preflight.headers.get("access-control-allow-origin")).toBe("file://");
+  });
+
+  it("accepts Electron 43 file-companion requests when Chromium omits Origin", async () => {
+    const headers = {
+      host: "127.0.0.1:4312",
+      "sec-fetch-site": "cross-site",
+      "sec-fetch-mode": "cors",
+      "sec-fetch-dest": "empty",
+    };
+    const stateResponse = await handleStateRequest(
+      new Request(url(`${STATE_PATH}?sessionId=desktop-companion`), { headers }),
+      service,
+    );
+    expect(stateResponse.status).toBe(200);
+
+    const commandResponse = await handleCommandRequest(new Request(url(COMMAND_PATH), {
+      method: "POST",
+      headers: { ...headers, "content-type": "application/json" },
+      body: JSON.stringify(command),
+    }), service);
+    expect(commandResponse.status).toBe(200);
   });
 
   it.each([

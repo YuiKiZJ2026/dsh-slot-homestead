@@ -4,9 +4,21 @@ import { HttpGameApi } from "./api";
 
 afterEach(() => {
   vi.restoreAllMocks();
+  vi.unstubAllGlobals();
 });
 
 describe("HttpGameApi", () => {
+  it("preserves the Window receiver when it uses the native global fetch", async () => {
+    const nativeLikeFetch = vi.fn(function (this: unknown) {
+      if (this !== globalThis) throw new TypeError("Illegal invocation");
+      return Promise.resolve(jsonResponse({ snapshot: snapshot() }));
+    }) as unknown as typeof fetch;
+    vi.stubGlobal("fetch", nativeLikeFetch);
+
+    await expect(new HttpGameApi().getSnapshot("global-widget")).resolves.toEqual(snapshot());
+    expect(nativeLikeFetch).toHaveBeenCalledOnce();
+  });
+
   it("encodes the session id and strictly parses the state envelope", async () => {
     const fetcher = vi.fn<typeof fetch>().mockResolvedValue(jsonResponse({
       snapshot: snapshot(),
@@ -23,6 +35,17 @@ describe("HttpGameApi", () => {
       snapshot: { ...snapshot(), unexpected: true },
     }));
     await expect(api.getSnapshot("session-1")).rejects.toThrow();
+  });
+
+  it("targets the loopback Host API when used by the standalone desktop companion", async () => {
+    const fetcher = vi.fn<typeof fetch>().mockResolvedValue(jsonResponse({ snapshot: snapshot() }));
+    const api = new HttpGameApi(fetcher, "http://127.0.0.1:43120/");
+
+    await api.getSnapshot("desktop-companion");
+    expect(fetcher).toHaveBeenCalledWith(
+      "http://127.0.0.1:43120/api/dsh-slot-widget/state?sessionId=desktop-companion",
+      expect.any(Object),
+    );
   });
 
   it("posts a strict command and returns the authoritative success snapshot", async () => {

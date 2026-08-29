@@ -2,6 +2,24 @@ export type DateKey = `${number}-${number}-${number}`;
 export type Rarity = "common" | "rare" | "set";
 export type ReelSymbol = "coin" | "leaf" | "crystal" | "moon" | "robot";
 export type AgentStatus = "idle" | "working" | "completed" | "error";
+export type TablePositionId =
+  | "left-rear-round"
+  | "left-rear-small"
+  | "right-rear-small"
+  | "right-rear-round"
+  | "left-middle-round"
+  | "left-middle-small"
+  | "right-middle-small"
+  | "right-middle-round"
+  | "left-front-round"
+  | "left-front-small"
+  | "center-front"
+  | "right-front-round";
+
+export interface TablePlacement {
+  itemId: string;
+  positionId: TablePositionId;
+}
 
 export interface DailyLedger {
   workCoins: number;
@@ -34,6 +52,7 @@ export interface GameSettings {
   muted: boolean;
   reducedMotion: boolean;
   scale: 1 | 2;
+  companionScale?: number;
 }
 
 export interface GameState {
@@ -49,6 +68,7 @@ export interface GameState {
   pityMisses: number;
   ownedCollectibles: string[];
   displayedCollectibles: string[];
+  tablePlacements: TablePlacement[];
   activeSpin: ResolvedSpin | null;
   agentStatus: AgentStatus;
   settings: GameSettings;
@@ -77,6 +97,7 @@ export function createInitialState(): GameState {
     pityMisses: 0,
     ownedCollectibles: [],
     displayedCollectibles: [],
+    tablePlacements: [],
     activeSpin: null,
     agentStatus: "idle",
     settings: { muted: true, reducedMotion: false, scale: 1 },

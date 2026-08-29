@@ -2,19 +2,23 @@ import {
   useEffect,
   useRef,
   useState,
+  type DragEvent as ReactDragEvent,
   type PointerEvent as ReactPointerEvent,
 } from "react";
 import { playSfx } from "../audio/sfx";
 import { CATALOG_BY_ID } from "../domain/catalog";
-import type { AgentStatus, GameState, ResolvedSpin } from "../domain/types";
+import { legacyPlacements, TABLE_POSITION_BY_ID, TABLE_POSITIONS } from "../domain/table-positions";
+import type { AgentStatus, GameState, ResolvedSpin, TablePositionId } from "../domain/types";
 import {
   animationFrameFor,
   type AnimationInput,
   type SceneViewModel,
 } from "../game/renderer/animation";
-import { loadSceneAssets, type SceneAssets } from "../game/renderer/assets";
+import { collectiblePlacementRect, loadSceneAssets, type SceneAssets } from "../game/renderer/assets";
 import { SceneRenderer } from "../game/renderer/scene-renderer";
 import { usePrefersReducedMotion } from "./use-prefers-reduced-motion";
+import { beginCollectibleDrag, draggedCollectibleId, endCollectibleDrag } from "./collectible-drag";
+import { nearestTablePosition } from "./placement-geometry";
 
 export type AnimationBoundaryEvent =
   | "SPIN_ANIMATION_DONE"
@@ -26,8 +30,10 @@ export interface GameCanvasProps {
   state: GameState;
   mode: "writer" | "readonly" | "unsupported";
   error?: string | null;
-  onInsertCoin(): void;
-  onPullLever(): void;
+  onPlay?(): void;
+  onInsertCoin?(): void;
+  onPullLever?(): void;
+  onSetPlacement?(id: string, positionId: TablePositionId | null): void;
   onAnimationEvent(event: AnimationBoundaryEvent): void;
   loadAssets?: () => Promise<SceneAssets>;
 }
@@ -63,8 +69,10 @@ export function GameCanvas({
   state,
   mode,
   error = null,
+  onPlay,
   onInsertCoin,
   onPullLever,
+  onSetPlacement,
   onAnimationEvent,
   loadAssets = loadSceneAssets,
 }: GameCanvasProps) {
@@ -77,6 +85,7 @@ export function GameCanvas({
   const dragRef = useRef<DragState | null>(null);
   const suppressClickRef = useRef(false);
   const [rewardAnnouncement, setRewardAnnouncement] = useState("");
+  const [snapPositionId, setSnapPositionId] = useState<TablePositionId | null>(null);
   const onAnimationEventRef = useRef(onAnimationEvent);
   const animationInputRef = useRef<AnimationInput>(animationInputFor(state, systemReducedMotion));
   const agentTimelineRef = useRef<AgentTimeline>({
@@ -200,26 +209,50 @@ export function GameCanvas({
   }, [spinKey]);
 
   const assetsReady = assetState === "ready";
-  const canInsert = assetsReady && mode === "writer" &&
-    state.wallet > 0 && state.activeSpin === null;
-  const canPull = assetsReady && mode === "writer" &&
-    state.activeSpin?.stage === "coin-inserted";
+  const canPlay = assetsReady && mode === "writer" && (
+    (state.wallet > 0 && state.activeSpin === null) ||
+    state.activeSpin?.stage === "coin-inserted"
+  );
   const liveMessage = statusMessage(
     state,
     mode,
     error,
     settledRewardMessage || rewardAnnouncement,
   );
+  const placements = state.tablePlacements.length > 0
+    ? state.tablePlacements
+    : legacyPlacements(state.displayedCollectibles);
+
+  const snapForDragEvent = (event: ReactDragEvent<HTMLDivElement>): TablePositionId | null => {
+    const itemId = draggedCollectibleId(event.dataTransfer);
+    if (itemId === null || !state.ownedCollectibles.includes(itemId) || mode !== "writer") return null;
+    const bounds = event.currentTarget.getBoundingClientRect();
+    if (
+      bounds.width <= 0 || bounds.height <= 0 ||
+      !Number.isFinite(event.clientX) || !Number.isFinite(event.clientY)
+    ) return null;
+    const position = nearestTablePosition({
+      x: (event.clientX - bounds.left) * 384 / bounds.width,
+      y: (event.clientY - bounds.top) * 288 / bounds.height,
+    }, placements, itemId);
+    return position?.id ?? null;
+  };
 
   const pullLever = (): void => {
-    if (!canPull) return;
+    if (!canPlay) return;
     setRewardAnnouncement("");
     playSfx("lever", soundDisabled(state));
-    onPullLever();
+    if (onPlay !== undefined) {
+      onPlay();
+    } else if (state.activeSpin?.stage === "coin-inserted") {
+      onPullLever?.();
+    } else {
+      onInsertCoin?.();
+    }
   };
 
   const handleLeverPointerDown = (event: ReactPointerEvent<HTMLButtonElement>): void => {
-    if (!canPull) return;
+    if (!canPlay) return;
     dragRef.current = {
       pointerId: event.pointerId,
       startY: event.clientY,
@@ -254,7 +287,31 @@ export function GameCanvas({
   };
 
   return (
-    <div className="game-canvas-wrap">
+    <div
+      className={`game-canvas-wrap${snapPositionId === null ? "" : " is-placing"}`}
+      data-testid="table-drop-surface"
+      onDragOver={(event) => {
+        const positionId = snapForDragEvent(event);
+        setSnapPositionId(positionId);
+        if (positionId !== null) {
+          event.preventDefault();
+          event.dataTransfer.dropEffect = "move";
+        }
+      }}
+      onDragLeave={(event) => {
+        if (!event.currentTarget.contains(event.relatedTarget as Node | null)) setSnapPositionId(null);
+      }}
+      onDrop={(event) => {
+        const itemId = draggedCollectibleId(event.dataTransfer);
+        const positionId = snapForDragEvent(event);
+        if (itemId !== null && positionId !== null) {
+          event.preventDefault();
+          onSetPlacement?.(itemId, positionId);
+        }
+        setSnapPositionId(null);
+        endCollectibleDrag();
+      }}
+    >
       <canvas
         ref={canvasRef}
         width={384}
@@ -265,34 +322,62 @@ export function GameCanvas({
       >
         DSH 像素老虎机场景
       </canvas>
-      {state.displayedCollectibles.map((id) => (
+      <div className="table-drop-hit-zones" aria-hidden="true">
+        <i className="table-drop-hit-zone table-drop-hit-zone--left" />
+        <i className="table-drop-hit-zone table-drop-hit-zone--right" />
+        <i className="table-drop-hit-zone table-drop-hit-zone--front" />
+      </div>
+      {placements.map(({ itemId: id, positionId }) => (
         <span
           className="visually-hidden"
           data-testid={`displayed-${id}`}
-          key={id}
+          key={`${positionId}:${id}`}
         >
           已展示收藏品：{CATALOG_BY_ID[id]?.name ?? id}
         </span>
       ))}
-      <button
-        type="button"
-        className="scene-control scene-control--coin"
-        aria-label="投入 1 枚硬币"
-        aria-describedby="game-status"
-        disabled={!canInsert}
-        onClick={() => {
-          if (!canInsert) return;
-          setRewardAnnouncement("");
-          playSfx("coin", soundDisabled(state));
-          onInsertCoin();
-        }}
-      />
+      <div className="table-placement-layer" aria-hidden="true">
+        {TABLE_POSITIONS.map((position) => (
+          <span
+            className="table-snap-target"
+            data-snap={snapPositionId === position.id ? "true" : "false"}
+            data-testid={`table-position-${position.id}`}
+            key={position.id}
+            style={{ left: position.x, top: position.y }}
+          />
+        ))}
+      </div>
+      {placements.map(({ itemId, positionId }) => {
+        const position = TABLE_POSITION_BY_ID[positionId];
+        const placementRect = collectiblePlacementRect(itemId, position);
+        return (
+          <button
+            type="button"
+            className="placed-collectible-drag-handle"
+            key={`drag-${positionId}:${itemId}`}
+            draggable={mode === "writer"}
+            disabled={mode !== "writer"}
+            aria-label={`拖动桌面上的 ${CATALOG_BY_ID[itemId]?.name ?? itemId}`}
+            style={{
+              left: placementRect.x,
+              top: placementRect.y,
+              width: placementRect.size,
+              height: placementRect.size,
+            }}
+            onDragStart={(event) => beginCollectibleDrag(event.dataTransfer, itemId)}
+            onDragEnd={() => {
+              setSnapPositionId(null);
+              endCollectibleDrag();
+            }}
+          />
+        );
+      })}
       <button
         type="button"
         className="scene-control scene-control--lever"
-        aria-label="拉动老虎机摇杆"
+        aria-label="拉下右侧摇杆"
         aria-describedby="game-status"
-        disabled={!canPull}
+        disabled={!canPlay}
         onPointerDown={handleLeverPointerDown}
         onPointerMove={handleLeverPointerMove}
         onPointerUp={finishLeverPointer}
@@ -325,6 +410,9 @@ function animationInputFor(state: GameState, systemReducedMotion: boolean): Anim
     payoutCoinAmount: payoutCoinAmountFor(spin),
     reels: spin?.reels ?? IDLE_REELS,
     displayed: state.displayedCollectibles ?? [],
+    placements: (state.tablePlacements.length > 0
+      ? state.tablePlacements
+      : legacyPlacements(state.displayedCollectibles)).map((placement) => ({ ...placement })),
     payoutCollectibleId: spin?.stage === "payout" && spin.reward.kind === "collectible"
       ? spin.reward.collectibleId
       : null,
@@ -371,7 +459,7 @@ function rewardMessageFor(spin: ResolvedSpin | null): string {
   if (spin.reward.isDuplicate) {
     return `重复收藏品已折算为 ${spin.reward.conversionCoins + spin.reward.bonusCoins} 枚硬币。`;
   }
-  return `获得收藏品${item === undefined ? "" : `：${item.name}`}。`;
+  return `获得收藏品${item === undefined ? "" : `：${item.name}`}，已收入收藏盒。`;
 }
 
 function playStageCue(

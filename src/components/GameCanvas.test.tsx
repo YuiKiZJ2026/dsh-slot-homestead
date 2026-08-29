@@ -2,14 +2,21 @@ import { act, cleanup, fireEvent, render, screen, waitFor } from "@testing-libra
 import userEvent from "@testing-library/user-event";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import * as sfx from "../audio/sfx";
+import { TABLE_POSITION_BY_ID } from "../domain/table-positions";
 import {
   createInitialState,
   type GameState,
   type ResolvedReward,
   type ResolvedSpin,
 } from "../domain/types";
-import type { SceneAssets } from "../game/renderer/assets";
+import { collectiblePlacementRect, type SceneAssets } from "../game/renderer/assets";
 import { GameCanvas } from "./GameCanvas";
+
+function dragEvent(type: "dragover" | "drop", dataTransfer: object): MouseEvent {
+  const event = new MouseEvent(type, { bubbles: true, cancelable: true, clientX: 47, clientY: 212 });
+  Object.defineProperty(event, "dataTransfer", { value: dataTransfer });
+  return event;
+}
 
 const neverLoads = () => new Promise<SceneAssets>(() => undefined);
 const READY_ASSETS: SceneAssets = {
@@ -59,6 +66,30 @@ function stateWithSpin(stage: ResolvedSpin["stage"], reducedMotion = false): Gam
 }
 
 describe("GameCanvas", () => {
+  it("uses the right-hand lever as the only spin control from an idle wallet", async () => {
+    vi.spyOn(HTMLCanvasElement.prototype, "getContext")
+      .mockReturnValue(recordingContext());
+    const onPlay = vi.fn();
+    const state = createInitialState();
+    state.wallet = 2;
+
+    render(
+      <GameCanvas
+        state={state}
+        mode="writer"
+        onPlay={onPlay}
+        onAnimationEvent={() => undefined}
+        loadAssets={loadsReady}
+      />,
+    );
+
+    expect(screen.queryByRole("button", { name: "投入 1 枚硬币" })).not.toBeInTheDocument();
+    const lever = screen.getByRole("button", { name: "拉下右侧摇杆" });
+    await waitFor(() => expect(lever).toBeEnabled());
+    await userEvent.click(lever);
+    expect(onPlay).toHaveBeenCalledOnce();
+  });
+
   it("marks the canvas ready only after it synchronously renders the elapsed-zero frame", async () => {
     const drawImage = vi.fn();
     const context = recordingContext(drawImage);
@@ -92,7 +123,7 @@ describe("GameCanvas", () => {
     ["loading", neverLoads, false],
     ["failed", () => Promise.reject(new Error("asset failure")), true],
   ] as const)(
-    "disables coin and lever side effects while assets are %s",
+    "disables lever side effects while assets are %s",
     async (_label, loadAssets, waitForFailure) => {
       vi.spyOn(HTMLCanvasElement.prototype, "getContext").mockReturnValue(null);
       const onInsertCoin = vi.fn();
@@ -111,11 +142,6 @@ describe("GameCanvas", () => {
       );
       if (waitForFailure) await screen.findByRole("alert");
 
-      const coin = screen.getByRole("button", { name: "投入 1 枚硬币" });
-      expect(coin).toBeDisabled();
-      fireEvent.click(coin);
-      expect(onInsertCoin).not.toHaveBeenCalled();
-
       rerender(
         <GameCanvas
           state={stateWithSpin("coin-inserted")}
@@ -126,12 +152,13 @@ describe("GameCanvas", () => {
           loadAssets={loadAssets}
         />,
       );
-      const lever = screen.getByRole("button", { name: "拉动老虎机摇杆" });
+      const lever = screen.getByRole("button", { name: "拉下右侧摇杆" });
       expect(lever).toBeDisabled();
       fireEvent.pointerDown(lever, { pointerId: 7, clientY: 10 });
       fireEvent.pointerMove(lever, { pointerId: 7, clientY: 40 });
       fireEvent.pointerUp(lever, { pointerId: 7, clientY: 40 });
       fireEvent.click(lever);
+      expect(onInsertCoin).not.toHaveBeenCalled();
       expect(onPullLever).not.toHaveBeenCalled();
     },
   );
@@ -156,7 +183,64 @@ describe("GameCanvas", () => {
     expect(screen.queryByTestId("displayed-moon-lamp")).not.toBeInTheDocument();
   });
 
-  it("exposes coin and lever as native keyboard-operable buttons", async () => {
+  it("magnetically previews and drops a dragged collectible on the nearest tabletop anchor", async () => {
+    const state = createInitialState();
+    state.ownedCollectibles = ["plant"];
+    const onSetPlacement = vi.fn();
+    render(
+      <GameCanvas
+        state={state}
+        mode="writer"
+        onSetPlacement={onSetPlacement}
+        onAnimationEvent={() => undefined}
+        loadAssets={neverLoads}
+      />,
+    );
+
+    const surface = screen.getByTestId("table-drop-surface");
+    vi.spyOn(surface, "getBoundingClientRect").mockReturnValue({
+      x: 0, y: 0, top: 0, left: 0, right: 384, bottom: 288, width: 384, height: 288,
+      toJSON: () => ({}),
+    });
+    const transfer = {
+      getData: () => "plant",
+      setData: () => undefined,
+      dropEffect: "move",
+      effectAllowed: "move",
+    };
+    fireEvent(surface, dragEvent("dragover", transfer));
+    await waitFor(() => expect(screen.getByTestId("table-position-left-front-round"))
+      .toHaveAttribute("data-snap", "true"));
+    fireEvent(surface, dragEvent("drop", transfer));
+    expect(onSetPlacement).toHaveBeenCalledWith("plant", "left-front-round");
+  });
+
+  it("keeps the placed-item drag target on the same visible sprite rectangle as the renderer", () => {
+    const state = createInitialState();
+    state.ownedCollectibles = ["desk-clock"];
+    state.tablePlacements = [{ itemId: "desk-clock", positionId: "right-middle-small" }];
+    render(
+      <GameCanvas
+        state={state}
+        mode="writer"
+        onSetPlacement={() => undefined}
+        onAnimationEvent={() => undefined}
+        loadAssets={neverLoads}
+      />,
+    );
+
+    const expected = collectiblePlacementRect(
+      "desk-clock",
+      TABLE_POSITION_BY_ID["right-middle-small"],
+    );
+    const handle = screen.getByRole("button", { name: "拖动桌面上的 桌面时钟" });
+    expect(Number.parseFloat(handle.style.left)).toBeCloseTo(expected.x, 2);
+    expect(Number.parseFloat(handle.style.top)).toBeCloseTo(expected.y, 2);
+    expect(Number.parseFloat(handle.style.width)).toBeCloseTo(expected.size, 2);
+    expect(Number.parseFloat(handle.style.height)).toBeCloseTo(expected.size, 2);
+  });
+
+  it("exposes the lever as the single native keyboard-operable spin button", async () => {
     vi.spyOn(HTMLCanvasElement.prototype, "getContext")
       .mockReturnValue(recordingContext());
     const user = userEvent.setup();
@@ -175,9 +259,9 @@ describe("GameCanvas", () => {
       />,
     );
 
-    const coin = screen.getByRole("button", { name: "投入 1 枚硬币" });
-    await waitFor(() => expect(coin).toBeEnabled());
-    await user.click(coin);
+    const idleLever = screen.getByRole("button", { name: "拉下右侧摇杆" });
+    await waitFor(() => expect(idleLever).toBeEnabled());
+    await user.click(idleLever);
     expect(onInsertCoin).toHaveBeenCalledOnce();
 
     rerender(
@@ -190,7 +274,7 @@ describe("GameCanvas", () => {
         loadAssets={loadsReady}
       />,
     );
-    const lever = screen.getByRole("button", { name: "拉动老虎机摇杆" });
+    const lever = screen.getByRole("button", { name: "拉下右侧摇杆" });
     lever.focus();
     await user.keyboard("{Enter}");
     await user.keyboard(" ");
@@ -211,7 +295,7 @@ describe("GameCanvas", () => {
         loadAssets={loadsReady}
       />,
     );
-    const lever = screen.getByRole("button", { name: "拉动老虎机摇杆" });
+    const lever = screen.getByRole("button", { name: "拉下右侧摇杆" });
     await waitFor(() => expect(lever).toBeEnabled());
 
     fireEvent.pointerDown(lever, { pointerId: 7, clientY: 10 });
@@ -237,7 +321,7 @@ describe("GameCanvas", () => {
         loadAssets={loadsReady}
       />,
     );
-    const firstLever = screen.getByRole("button", { name: "拉动老虎机摇杆" });
+    const firstLever = screen.getByRole("button", { name: "拉下右侧摇杆" });
     await waitFor(() => expect(firstLever).toBeEnabled());
 
     fireEvent.pointerDown(firstLever, { pointerId: 7, clientY: 10 });
@@ -257,7 +341,7 @@ describe("GameCanvas", () => {
         loadAssets={loadsReady}
       />,
     );
-    fireEvent.click(screen.getByRole("button", { name: "拉动老虎机摇杆" }));
+    fireEvent.click(screen.getByRole("button", { name: "拉下右侧摇杆" }));
 
     expect(onPullLever).toHaveBeenCalledTimes(2);
   });
@@ -274,8 +358,7 @@ describe("GameCanvas", () => {
         loadAssets={neverLoads}
       />,
     );
-    expect(screen.getByRole("button", { name: "投入 1 枚硬币" })).toBeDisabled();
-    expect(screen.getByRole("button", { name: "拉动老虎机摇杆" })).toBeDisabled();
+    expect(screen.getByRole("button", { name: "拉下右侧摇杆" })).toBeDisabled();
 
     state.wallet = 2;
     rerender(
@@ -288,7 +371,7 @@ describe("GameCanvas", () => {
         loadAssets={neverLoads}
       />,
     );
-    expect(screen.getByRole("button", { name: "投入 1 枚硬币" })).toBeDisabled();
+    expect(screen.getByRole("button", { name: "拉下右侧摇杆" })).toBeDisabled();
     expect(screen.getByRole("status")).toHaveTextContent("只读");
   });
 
@@ -311,11 +394,11 @@ describe("GameCanvas", () => {
       />,
     );
 
-    const coin = screen.getByRole("button", { name: "投入 1 枚硬币" });
-    await waitFor(() => expect(coin).toBeEnabled());
-    await userEvent.click(coin);
+    const lever = screen.getByRole("button", { name: "拉下右侧摇杆" });
+    await waitFor(() => expect(lever).toBeEnabled());
+    await userEvent.click(lever);
 
-    expect(play).toHaveBeenCalledWith("coin", true);
+    expect(play).toHaveBeenCalledWith("lever", true);
   });
 
   it("keeps disabled controls and a live warning available when image assets fail", async () => {
@@ -334,7 +417,7 @@ describe("GameCanvas", () => {
     );
 
     expect(await screen.findByText("像素资源加载失败；经济操作已暂停")).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "投入 1 枚硬币" })).toBeDisabled();
+    expect(screen.getByRole("button", { name: "拉下右侧摇杆" })).toBeDisabled();
     expect(getContext).toHaveBeenCalled();
   });
 

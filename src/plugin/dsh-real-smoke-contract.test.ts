@@ -3,14 +3,17 @@ import { readFileSync } from "node:fs";
 // @ts-expect-error Node built-ins are available in Vitest; browser-facing typecheck omits @types/node.
 import { resolve } from "node:path";
 import { describe, expect, it } from "vitest";
-import { createDshInvocation } from "../../scripts/dsh-real-smoke.mjs";
+import {
+  createDshInvocation,
+  defaultPluginArchive,
+} from "../../scripts/dsh-real-smoke.mjs";
 
 // @ts-expect-error Node globals are available in Vitest; browser-facing typecheck omits @types/node.
 const root = process.cwd();
 const read = (path: string): string => readFileSync(resolve(root, path), "utf8");
 
 describe("real DSH CI gate contract", () => {
-  it("installs pinned pnpm and DSH on pinned Linux before running the reusable smoke", () => {
+  it("installs pinned pnpm and DSH on pinned Linux before running the version-aware smoke", () => {
     const workflow = read(".github/workflows/ci.yml");
 
     expect(workflow).toContain("real-dsh-smoke:");
@@ -18,10 +21,15 @@ describe("real DSH CI gate contract", () => {
     expect(workflow).toMatch(/pnpm\/action-setup@v4[\s\S]*version:\s*11\.7\.0/);
     expect(workflow).toContain("pnpm add --global @deepseek-ai/dsh@0.1.1-rc.2");
     expect(workflow).toContain("npm run build");
-    expect(workflow).toContain(
-      "node scripts/dsh-real-smoke.mjs --dsh dsh --tgz ./dsh-desktop-slot-widget-0.2.0.tgz",
-    );
+    expect(workflow).toContain("node scripts/dsh-real-smoke.mjs --dsh dsh");
+    expect(workflow).not.toContain("--tgz ./dsh-desktop-slot-widget-");
     expect(workflow).not.toMatch(/npx\s+@deepseek-ai\/dsh|pnpm\s+dlx/);
+  });
+
+  it("derives the default archive from the current package manifest", () => {
+    const manifest = JSON.parse(read("package.json"));
+
+    expect(defaultPluginArchive()).toBe(`./${manifest.name}-${manifest.version}.tgz`);
   });
 
   it("holds the old port and reaps failed starts before isolated-home teardown", () => {

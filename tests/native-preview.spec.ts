@@ -9,6 +9,7 @@ import {
   groupDrawsByReelWindow,
   type ReelDraw,
 } from "../src/plugin/testing/reel-probe";
+import { PLUGIN_STYLE } from "../src/plugin/client/style";
 
 interface BoundingBox {
   x: number;
@@ -23,6 +24,43 @@ const VIEWPORTS = [
 ] as const;
 
 test.use({ contextOptions: { reducedMotion: "no-preference" } });
+
+test("desktop overlay passes transparent table clicks to the DSH control beneath it", async ({ page }) => {
+  await page.goto("/native-preview.html");
+  await waitForCanvasReady(page);
+  await page.addStyleTag({ content: PLUGIN_STYLE });
+  await page.evaluate(async () => {
+    const root = document.querySelector<HTMLElement>(".dsh-slot-widget-root");
+    if (root === null) throw new Error("slot overlay root is missing");
+    root.classList.remove("desktop--page");
+    root.classList.add("desktop--overlay");
+    root.style.zIndex = "2";
+    await new Promise<void>((resolve) => requestAnimationFrame(() => resolve()));
+
+    const canvas = document.querySelector<HTMLElement>(".game-canvas-wrap");
+    if (canvas === null) throw new Error("slot canvas is missing");
+    const box = canvas.getBoundingClientRect();
+    const underlay = document.createElement("button");
+    underlay.type = "button";
+    underlay.textContent = "DSH 模型按钮";
+    underlay.dataset.testid = "dsh-underlay-control";
+    Object.assign(underlay.style, {
+      position: "fixed",
+      left: `${box.left + 320}px`,
+      top: `${box.top + 244}px`,
+      zIndex: "1",
+      width: "56px",
+      height: "28px",
+    });
+    underlay.addEventListener("click", () => { underlay.dataset.clicked = "true"; });
+    document.body.prepend(underlay);
+  });
+
+  const underlay = page.getByTestId("dsh-underlay-control");
+  await underlay.click();
+  await expect(underlay).toHaveAttribute("data-clicked", "true");
+  await expect(page.getByRole("button", { name: "拉下右侧摇杆" })).toBeEnabled();
+});
 
 for (const viewport of VIEWPORTS) {
   test(`native preview completes a Host-shaped spin at ${viewport.name}`, async ({ page }, testInfo) => {
@@ -46,16 +84,12 @@ for (const viewport of VIEWPORTS) {
     await expect(application).toBeVisible();
     await expect(page.locator("vite-error-overlay")).toHaveCount(0);
     await expect(page.getByTestId("wallet-count")).toHaveText("8");
-    await expect(page.getByText("Token 能量：1,850 / 3,000")).toBeVisible();
-    await expect(page.getByRole("progressbar", { name: "Token 能量进度" }))
+    await expect(page.getByText("实际 Token：1,850 / 10,000")).toBeVisible();
+    await expect(page.getByRole("progressbar", { name: "实际 Token 进度" }))
       .toHaveAttribute("aria-valuenow", "1850");
     await expect(page.getByText("今日 Token 奖励：3 / 8")).toBeVisible();
 
-    const coinControl = page.getByRole("button", { name: "投入 1 枚硬币" });
-    const leverControl = page.getByRole("button", { name: "拉动老虎机摇杆" });
-    await expect(coinControl).toBeEnabled();
-    await coinControl.click();
-    await expect(page.getByTestId("wallet-count")).toHaveText("7");
+    const leverControl = page.getByRole("button", { name: "拉下右侧摇杆" });
     await expect(leverControl).toBeEnabled();
     const probeCursor = await page.evaluate(() => {
       type BrowserReelDraw = { sx: number; dx: number; dy: number; dw: number; dh: number };
@@ -75,6 +109,7 @@ for (const viewport of VIEWPORTS) {
       return null;
     }, probeCursor);
     const spinningSources = await spinningFrameHandle.jsonValue();
+    await expect(page.getByTestId("wallet-count")).toHaveText("7");
     expect(spinningSources).not.toBeNull();
     if (spinningSources === null) throw new Error("Canvas probe returned no spinning reel frame");
     expect(spinningSources).toHaveLength(12);
@@ -96,7 +131,7 @@ for (const viewport of VIEWPORTS) {
 
     await expect(page.getByTestId("wallet-count")).toHaveText("12");
     await expect(page.locator("#game-status")).toContainText("获得 5 枚硬币");
-    await expect(coinControl).toBeEnabled();
+    await expect(leverControl).toBeEnabled();
     await captureQaScreenshot(
       page,
       testInfo,

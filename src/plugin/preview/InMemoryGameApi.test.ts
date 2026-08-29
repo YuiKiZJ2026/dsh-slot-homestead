@@ -3,7 +3,7 @@ import type { CommandRequest } from "../shared/contracts";
 import { InMemoryGameApi } from "./InMemoryGameApi";
 
 describe("InMemoryGameApi", () => {
-  it("keeps the standalone 1850/3000 fixture interactive through Host-shaped spin stages", async () => {
+  it("keeps the standalone 1850/10000 fixture interactive through Host-shaped spin stages", async () => {
     const api = new InMemoryGameApi();
     let state = await api.getSnapshot("preview");
     expect(state.tokenEnergy.progress).toBe(1_850);
@@ -20,7 +20,161 @@ describe("InMemoryGameApi", () => {
     expect(state.pendingSpin).toBeNull();
     expect(state.wallet).toBeGreaterThan(7);
   });
+
+  it("supports warehouse placement, moving, removal, and occupied-position rejection", async () => {
+    const api = new InMemoryGameApi();
+    let state = await api.getSnapshot("preview");
+    state = (await api.command({
+      ...base(state.revision, 10),
+      type: "buyItem",
+      itemId: "book-stand",
+    })).snapshot;
+    expect(state).toMatchObject({ inventory: ["plant", "book-stand"], wallet: 2 });
+
+    state = (await api.command({
+      ...base(state.revision, 11),
+      type: "setPlacement",
+      itemId: "plant",
+      positionId: "left-front-round",
+    })).snapshot;
+    expect(state.tablePlacements).toEqual([
+      { itemId: "plant", positionId: "left-front-round" },
+    ]);
+
+    const replaced = await api.command({
+      ...base(state.revision, 12),
+      type: "setPlacement",
+      itemId: "book-stand",
+      positionId: "left-front-round",
+    });
+    expect(replaced).toMatchObject({
+      status: 200,
+      snapshot: {
+        displaySlots: ["book-stand"],
+        tablePlacements: [{ itemId: "book-stand", positionId: "left-front-round" }],
+      },
+    });
+    state = replaced.snapshot;
+
+    state = (await api.command({
+      ...base(state.revision, 13),
+      type: "setPlacement",
+      itemId: "plant",
+      positionId: "right-front-round",
+    })).snapshot;
+    expect(state.displaySlots).toEqual(["book-stand", "plant"]);
+
+    state = (await api.command({
+      ...base(state.revision, 14),
+      type: "setPlacement",
+      itemId: "plant",
+      positionId: null,
+    })).snapshot;
+    expect(state).toMatchObject({
+      displaySlots: ["book-stand"],
+      tablePlacements: [{ itemId: "book-stand", positionId: "left-front-round" }],
+    });
+
+    const unowned = await api.command({
+      ...base(state.revision, 15),
+      type: "setPlacement",
+      itemId: "crystal",
+      positionId: "left-rear-round",
+    });
+    expect(unowned).toMatchObject({ status: 409, errorCode: "item-not-owned" });
+  });
+
+  it("keeps legacy display commands synchronized with the first free physical position", async () => {
+    const api = new InMemoryGameApi();
+    let state = await api.getSnapshot("preview");
+
+    state = (await api.command({
+      ...base(state.revision, 20),
+      type: "setDisplay",
+      itemId: "plant",
+      displayed: false,
+    })).snapshot;
+    expect(state).toMatchObject({ displaySlots: [], tablePlacements: [] });
+
+    state = (await api.command({
+      ...base(state.revision, 21),
+      type: "setDisplay",
+      itemId: "plant",
+      displayed: true,
+    })).snapshot;
+    expect(state.tablePlacements).toEqual([
+      { itemId: "plant", positionId: "left-rear-round" },
+    ]);
+
+    state = (await api.command({
+      ...base(state.revision, 22),
+      type: "setDisplay",
+      itemId: "plant",
+      displayed: true,
+    })).snapshot;
+    expect(state.tablePlacements).toHaveLength(1);
+
+    const unowned = await api.command({
+      ...base(state.revision, 23),
+      type: "setDisplay",
+      itemId: "crystal",
+      displayed: true,
+    });
+    expect(unowned).toMatchObject({ status: 409, errorCode: "item-not-owned" });
+  });
+
+  it("reports preview conflicts for invalid revisions, purchases, spin stages, and aborted work", async () => {
+    const api = new InMemoryGameApi();
+    const state = await api.getSnapshot("preview");
+
+    expect(await api.command({ ...base(99, 30), type: "claimDaily" })).toMatchObject({
+      status: 409,
+      errorCode: "revision-conflict",
+    });
+    expect(await api.command({ ...base(state.revision, 31), type: "buyItem", itemId: "unknown" }))
+      .toMatchObject({ status: 409, errorCode: "unknown-item" });
+    expect(await api.command({ ...base(state.revision, 32), type: "buyItem", itemId: "plant" }))
+      .toMatchObject({ status: 409, errorCode: "already-owned" });
+    expect(await api.command({ ...base(state.revision, 33), type: "buyItem", itemId: "crystal" }))
+      .toMatchObject({ status: 409, errorCode: "insufficient-coins" });
+    expect(await api.command({ ...base(state.revision, 34), type: "pullLever", spinId: "missing" }))
+      .toMatchObject({ status: 409, errorCode: "invalid-spin-state" });
+    expect(await api.command({ ...base(state.revision, 35), type: "settleSpin", spinId: "missing" }))
+      .toMatchObject({ status: 409, errorCode: "invalid-spin-state" });
+
+    const controller = new AbortController();
+    controller.abort();
+    await expect(api.getSnapshot("preview", controller.signal)).rejects.toThrow("Aborted");
+    await expect(api.command({ ...base(state.revision, 36), type: "claimDaily" }, controller.signal))
+      .rejects.toThrow("Aborted");
+  });
+
+  it("applies settings and treats the already-claimed daily grant as a no-op", async () => {
+    const api = new InMemoryGameApi();
+    let state = await api.getSnapshot("preview");
+    state = (await api.command({ ...base(state.revision, 40), type: "claimDaily" })).snapshot;
+    expect(state.revision).toBe(0);
+
+    state = (await api.command({
+      ...base(state.revision, 41),
+      type: "updateSettings",
+      patch: { muted: false, reducedMotion: true, scale: 2 },
+    })).snapshot;
+    expect(state).toMatchObject({
+      revision: 1,
+      settings: { muted: false, reducedMotion: true, scale: 2 },
+    });
+  });
 });
+
+function base(expectedRevision: number, sequence: number) {
+  return {
+    commandId: `00000000-0000-4000-8000-${String(sequence).padStart(12, "0")}`,
+    sessionId: "preview",
+    expectedRevision,
+    issuedAt: "2026-08-27T00:00:00.000Z",
+  } as const;
+}
 
 function command(
   type: "insertCoin" | "pullLever" | "settleSpin",

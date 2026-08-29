@@ -1,4 +1,5 @@
 import { createInitialState, type GameState } from "../../domain/types";
+import { legacyPlacements } from "../../domain/table-positions";
 import { createPaidSpin } from "../../game/outcomes";
 import type { RandomSource } from "../../game/rng";
 import { mathRandomSource } from "../../game/rng";
@@ -6,6 +7,7 @@ import {
   buyCollectible,
   settleActiveSpin,
   setCollectibleDisplayed,
+  setCollectiblePlacement,
 } from "../../inventory/inventory";
 import type { Clock } from "../../time/clock";
 import { localDateKey, SystemClock } from "../../time/clock";
@@ -331,6 +333,7 @@ export class GameService {
       pityCount: state.pityCount,
       inventory: [...state.inventory],
       displaySlots: [...state.displaySlots],
+      tablePlacements: placementsFor(state),
       settings: { ...state.settings },
       pendingSpin: state.pendingSpin === null ? null : structuredClone(state.pendingSpin),
       agentStatus: this.agentStatus(sessionId),
@@ -433,6 +436,7 @@ export class GameService {
             pityCount: settled.pityMisses,
             inventory: settled.ownedCollectibles,
             displaySlots: settled.displayedCollectibles,
+            tablePlacements: settled.tablePlacements,
             pendingSpin: null,
           },
         };
@@ -448,6 +452,7 @@ export class GameService {
             wallet: result.state.wallet,
             inventory: result.state.ownedCollectibles,
             displaySlots: result.state.displayedCollectibles,
+            tablePlacements: result.state.tablePlacements,
           },
         };
       }
@@ -464,7 +469,32 @@ export class GameService {
         if (sameStrings(result.displayedCollectibles, current.displaySlots)) {
           return { kind: "unchanged" };
         }
-        return { kind: "changed", state: { ...current, displaySlots: result.displayedCollectibles } };
+        return {
+          kind: "changed",
+          state: {
+            ...current,
+            displaySlots: result.displayedCollectibles,
+            tablePlacements: result.tablePlacements,
+          },
+        };
+      }
+
+      case "setPlacement": {
+        if (!current.inventory.includes(request.itemId)) {
+          return { kind: "error", code: "item-not-owned" };
+        }
+        const placements = placementsFor(current);
+        const game = toGameState(current);
+        const result = setCollectiblePlacement(game, request.itemId, request.positionId);
+        if (samePlacements(result.tablePlacements, placements)) return { kind: "unchanged" };
+        return {
+          kind: "changed",
+          state: {
+            ...current,
+            displaySlots: result.displayedCollectibles,
+            tablePlacements: result.tablePlacements,
+          },
+        };
       }
 
       case "updateSettings": {
@@ -472,7 +502,8 @@ export class GameService {
         if (
           settings.muted === current.settings.muted &&
           settings.reducedMotion === current.settings.reducedMotion &&
-          settings.scale === current.settings.scale
+          settings.scale === current.settings.scale &&
+          settings.companionScale === current.settings.companionScale
         ) {
           return { kind: "unchanged" };
         }
@@ -494,6 +525,7 @@ function toGameState(state: HostState): GameState {
   game.pityMisses = state.pityCount;
   game.ownedCollectibles = [...state.inventory];
   game.displayedCollectibles = [...state.displaySlots];
+  game.tablePlacements = placementsFor(state);
   game.settings = { ...state.settings };
   game.activeSpin = state.pendingSpin === null
     ? null
@@ -525,6 +557,8 @@ function commandFingerprint(request: CommandRequest): string {
       return JSON.stringify([request.sessionId, request.type, request.itemId]);
     case "setDisplay":
       return JSON.stringify([request.sessionId, request.type, request.itemId, request.displayed]);
+    case "setPlacement":
+      return JSON.stringify([request.sessionId, request.type, request.itemId, request.positionId]);
     case "updateSettings":
       return JSON.stringify([
         request.sessionId,
@@ -532,8 +566,23 @@ function commandFingerprint(request: CommandRequest): string {
         request.patch.muted ?? null,
         request.patch.reducedMotion ?? null,
         request.patch.scale ?? null,
+        request.patch.companionScale ?? null,
       ]);
   }
+}
+
+function placementsFor(state: Pick<HostState, "displaySlots" | "tablePlacements">) {
+  const source = state.tablePlacements?.length ? state.tablePlacements : legacyPlacements(state.displaySlots);
+  return source.map((placement) => ({ ...placement }));
+}
+
+function samePlacements(
+  left: readonly { itemId: string; positionId: string }[],
+  right: readonly { itemId: string; positionId: string }[],
+): boolean {
+  return left.length === right.length && left.every((placement, index) => (
+    placement.itemId === right[index]?.itemId && placement.positionId === right[index]?.positionId
+  ));
 }
 
 function appendReceipt(

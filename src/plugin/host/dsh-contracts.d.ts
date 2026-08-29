@@ -24,6 +24,7 @@ declare module "@deepseek-ai/cordis" {
       list(): import("./session-usage").SessionLike[];
     };
     readonly webServer: {
+      readonly port: number;
       register(route: import("./http").HostWebRoute): () => void;
     };
     readonly logger: {
@@ -51,4 +52,10 @@ declare module "@deepseek-ai/cordis" {
       label?: string,
     ): void;
   }
+}
+
+declare module "electron" {
+  export const BrowserWindow: unknown;
+  export const app: unknown;
+  export const screen: unknown;
 }

@@ -48,7 +48,7 @@ class MemoryDomain implements GameDomain {
 
 function state(overrides: Partial<HostState> = {}): HostState {
   return {
-    schemaVersion: 2,
+    schemaVersion: 3,
     revision: 0,
     wallet: 0,
     lastGrantedLocalDate: null,
@@ -58,6 +58,7 @@ function state(overrides: Partial<HostState> = {}): HostState {
     pityCount: 0,
     inventory: [],
     displaySlots: [],
+    tablePlacements: [],
     settings: { muted: true, reducedMotion: false, scale: 1 },
     pendingSpin: null,
     recentCommands: {},
@@ -140,6 +141,67 @@ function sessionHistoryFor(sessionId: string, ...sequences: number[]): SessionLi
 }
 
 describe("authoritative game service", () => {
+  it("persists chosen table positions and returns a replaced occupant to storage atomically", async () => {
+    const domain = new MemoryDomain(state({ inventory: ["plant", "crystal"] }));
+    const game = service(domain);
+    const base = {
+      sessionId: "session-1",
+      issuedAt: NOW.toISOString(),
+    };
+
+    const plant = await game.command({
+      ...base,
+      type: "setPlacement",
+      commandId: "00000000-0000-4000-8000-000000000101",
+      expectedRevision: 0,
+      itemId: "plant",
+      positionId: "left-front-round",
+    });
+    expect(plant).toMatchObject({
+      status: 200,
+      snapshot: {
+        revision: 1,
+        displaySlots: ["plant"],
+        tablePlacements: [{ itemId: "plant", positionId: "left-front-round" }],
+      },
+    });
+
+    const replaced = await game.command({
+      ...base,
+      type: "setPlacement",
+      commandId: "00000000-0000-4000-8000-000000000102",
+      expectedRevision: 1,
+      itemId: "crystal",
+      positionId: "left-front-round",
+    });
+    expect(replaced).toMatchObject({
+      status: 200,
+      snapshot: {
+        revision: 2,
+        displaySlots: ["crystal"],
+        tablePlacements: [{ itemId: "crystal", positionId: "left-front-round" }],
+      },
+    });
+    expect(domain.persisted()).toMatchObject({
+      revision: 2,
+      displaySlots: ["crystal"],
+      tablePlacements: [{ itemId: "crystal", positionId: "left-front-round" }],
+    });
+
+    const returned = await game.command({
+      ...base,
+      type: "setPlacement",
+      commandId: "00000000-0000-4000-8000-000000000103",
+      expectedRevision: 2,
+      itemId: "crystal",
+      positionId: null,
+    });
+    expect(returned).toMatchObject({
+      status: 200,
+      snapshot: { revision: 3, displaySlots: [], tablePlacements: [] },
+    });
+  });
+
   it("does not expose wallet, revision, or command receipt when storage rejects", async () => {
     const domain = new MemoryDomain(state({ wallet: 2 }));
     domain.failNextWrite = true;
@@ -190,7 +252,8 @@ describe("authoritative game service", () => {
 
     expect(domain.persisted()).toMatchObject({
       revision: 1,
-      wallet: 1,
+      wallet: 0,
+      tokenEnergy: { progress: 3_000 },
       tokenUsageWatermarks: { "session-1": 13 },
     });
   });
@@ -213,14 +276,14 @@ describe("authoritative game service", () => {
     await restarted.adoptSession(sessionHistory(13, 23));
     expect(domain.persisted()).toMatchObject({
       revision: 2,
-      wallet: 1,
-      tokenEnergy: { progress: 0 },
+      wallet: 0,
+      tokenEnergy: { progress: 3_000 },
       tokenUsageWatermarks: { "session-1": 23 },
     });
 
     const secondRestart = service(domain);
     await secondRestart.adoptSession(sessionHistory(13, 23));
-    expect(domain.persisted()).toMatchObject({ revision: 2, wallet: 1 });
+    expect(domain.persisted()).toMatchObject({ revision: 2, wallet: 0 });
   });
 
   it("buffers live high sequences until lower history adoption completes", async () => {
@@ -234,8 +297,8 @@ describe("authoritative game service", () => {
 
     expect(domain.persisted()).toMatchObject({
       revision: 2,
-      wallet: 1,
-      tokenEnergy: { progress: 0 },
+      wallet: 0,
+      tokenEnergy: { progress: 3_000 },
       tokenUsageWatermarks: { "session-1": 23 },
     });
   });
@@ -256,8 +319,8 @@ describe("authoritative game service", () => {
 
     expect(domain.persisted()).toMatchObject({
       revision: 2,
-      wallet: 1,
-      tokenEnergy: { progress: 0 },
+      wallet: 0,
+      tokenEnergy: { progress: 3_000 },
       tokenUsageWatermarks: { "session-1": 23 },
     });
   });
@@ -299,8 +362,8 @@ describe("authoritative game service", () => {
 
     expect(domain.persisted()).toMatchObject({
       revision: 2,
-      wallet: 1,
-      tokenEnergy: { progress: 0 },
+      wallet: 0,
+      tokenEnergy: { progress: 3_000 },
       tokenUsageWatermarks: { "session-1": 23 },
     });
   });
@@ -351,10 +414,10 @@ describe("authoritative game service", () => {
     await game.completeUsageBootstrap();
 
     expect(domain.persisted()).toMatchObject({
-      schemaVersion: 2,
-      revision: 2,
-      wallet: 1,
-      tokenEnergy: { progress: 0 },
+      schemaVersion: 3,
+      revision: 3,
+      wallet: 0,
+      tokenEnergy: { progress: 3_000 },
       tokenUsageWatermarks: { "session-1": 23 },
     });
     expect(domain.persisted()).not.toHaveProperty("legacyTokenUsageReceipts");
@@ -390,9 +453,9 @@ describe("authoritative game service", () => {
     for (const event of resumed.events) await game.acceptSessionEvent(resumed, event);
 
     expect(domain.persisted()).toMatchObject({
-      revision: 2,
-      wallet: 1,
-      tokenEnergy: { progress: 0 },
+      revision: 3,
+      wallet: 0,
+      tokenEnergy: { progress: 3_000 },
       tokenUsageWatermarks: { "session-cold": 23 },
     });
     expect(domain.persisted()).not.toHaveProperty("legacyTokenUsageReceipts");
@@ -547,6 +610,25 @@ describe("authoritative game service", () => {
       status: 409,
       errorCode: "command-id-reused",
       snapshot: { revision: 1, wallet: 3 },
+    });
+  });
+
+  it("persists the desktop companion scale in authoritative Host settings", async () => {
+    const domain = new MemoryDomain(state());
+    const game = service(domain);
+    const result = await game.command({
+      ...request("claimDaily", 15),
+      type: "updateSettings",
+      patch: { companionScale: 1.25 },
+    });
+
+    expect(result).toMatchObject({
+      status: 200,
+      snapshot: { revision: 1, settings: { companionScale: 1.25 } },
+    });
+    expect(domain.persisted()).toMatchObject({
+      revision: 1,
+      settings: { companionScale: 1.25 },
     });
   });
 

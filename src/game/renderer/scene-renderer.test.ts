@@ -33,6 +33,7 @@ function viewModel(patch: Partial<SceneViewModel> = {}): SceneViewModel {
     coins: [],
     sparkles: [],
     displayed: [],
+    placements: [],
     payoutCollectibleId: null,
     payoutCoinAmount: 0,
     agentStatus: "idle",
@@ -64,6 +65,7 @@ describe("SceneRenderer", () => {
       starryTheme: true,
       leverProgress: 1,
       displayed: ["plant"],
+      placements: [{ itemId: "plant", positionId: "left-front-round" }],
       payoutCollectibleId: "crystal",
       payoutPosition: { x: 224, y: 188 },
       coins: [{ x: 210.5, y: 170.25, startY: 202, size: 3 }],
@@ -262,7 +264,20 @@ describe("SceneRenderer", () => {
     renderer.render(viewModel({ payoutCollectibleId: "plant" }));
 
     const payout = context.calls.find((call) => call.name === "payout");
-    expect(payout?.args.slice(-4)).toEqual([195, 107, 36, 36]);
+    expect(payout?.args.slice(-4)).toEqual([181, 79, 64, 64]);
+  });
+
+  it("draws a placed collectible at its chosen tabletop pedestal at a readable scale", () => {
+    const context = recordingContext();
+    const renderer = new SceneRenderer(context, assets);
+
+    renderer.render(viewModel({
+      displayed: ["plant"],
+      placements: [{ itemId: "plant", positionId: "right-rear-round" }],
+    }));
+
+    const displayed = context.calls.find((call) => call.name === "displayed");
+    expect(displayed?.args.slice(-4)).toEqual([294, 94, 53, 53]);
   });
 
   it("rounds all canvas draw geometry to finite integers and never uses fractional scale", () => {
@@ -343,7 +358,7 @@ function recordingContext(): RecordingContext {
       const kind = (image as unknown as { kind: string }).kind;
       let name = kind === "scene" ? "scene" : "reel";
       if (kind === "collectibles") {
-        name = args.at(-1) === 36 ? "payout" : "displayed";
+        name = args.at(-1) === 64 ? "payout" : "displayed";
       }
       calls.push({ name, args });
     },

@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { AnimationBoundaryEvent } from "../../components/GameCanvas";
-import { createInitialState, type GameSettings, type GameState, type ResolvedSpin } from "../../domain/types";
+import { createInitialState, type GameSettings, type GameState, type ResolvedSpin, type TablePositionId } from "../../domain/types";
 import type { CommandRequest, CommandResult, PublicSnapshot } from "../shared/contracts";
 import type { GameApi } from "./api";
 
@@ -10,6 +10,7 @@ type CommandPayload =
   | { type: "pullLever" | "settleSpin"; spinId: string }
   | { type: "buyItem"; itemId: string }
   | { type: "setDisplay"; itemId: string; displayed: boolean }
+  | { type: "setPlacement"; itemId: string; positionId: TablePositionId | null }
   | { type: "updateSettings"; patch: Partial<GameSettings> };
 
 export interface HostGameControllerOptions {
@@ -28,8 +29,10 @@ export interface HostGameController {
   refresh(): Promise<void>;
   insertCoin(): Promise<void>;
   pullLever(): Promise<void>;
+  play(): Promise<void>;
   buy(itemId: string): Promise<void>;
   setDisplayed(itemId: string, displayed: boolean): Promise<void>;
+  setPlacement(itemId: string, positionId: TablePositionId | null): Promise<void>;
   setSettings(patch: Partial<GameSettings>): Promise<void>;
   advanceAnimation(event: AnimationBoundaryEvent): Promise<void>;
 }
@@ -185,12 +188,33 @@ export function useHostGameController({
     await executeCommand({ type: "pullLever", spinId: spin.id });
   }, [executeCommand]);
 
+  const play = useCallback(async (): Promise<void> => {
+    const spin = visualSpinRef.current;
+    if (spin?.stage === "coin-inserted") {
+      await executeCommand({ type: "pullLever", spinId: spin.id });
+      return;
+    }
+    if (spin !== null) return;
+    const inserted = await executeCommand({ type: "insertCoin" });
+    if (inserted === null || inserted.status !== 200) return;
+    const paid = inserted.snapshot.pendingSpin;
+    if (paid?.stage !== "paid") return;
+    await executeCommand({ type: "pullLever", spinId: paid.id }, inserted.snapshot);
+  }, [executeCommand]);
+
   const buy = useCallback(async (itemId: string): Promise<void> => {
     await executeCommand({ type: "buyItem", itemId });
   }, [executeCommand]);
 
   const setDisplayed = useCallback(async (itemId: string, displayed: boolean): Promise<void> => {
     await executeCommand({ type: "setDisplay", itemId, displayed });
+  }, [executeCommand]);
+
+  const setPlacement = useCallback(async (
+    itemId: string,
+    positionId: TablePositionId | null,
+  ): Promise<void> => {
+    await executeCommand({ type: "setPlacement", itemId, positionId });
   }, [executeCommand]);
 
   const setSettings = useCallback(async (patch: Partial<GameSettings>): Promise<void> => {
@@ -250,8 +274,10 @@ export function useHostGameController({
     refresh,
     insertCoin,
     pullLever,
+    play,
     buy,
     setDisplayed,
+    setPlacement,
     setSettings,
     advanceAnimation,
   };
@@ -282,6 +308,12 @@ function makeCommandRequest(
       itemId: payload.itemId,
       displayed: payload.displayed,
     };
+    case "setPlacement": return {
+      ...base,
+      type: "setPlacement",
+      itemId: payload.itemId,
+      positionId: payload.positionId,
+    };
     case "updateSettings": return { ...base, type: "updateSettings", patch: payload.patch };
   }
 }
@@ -299,6 +331,9 @@ function gameStateFrom(snapshot: PublicSnapshot | null, visualSpin: ResolvedSpin
   state.pityMisses = snapshot.pityCount;
   state.ownedCollectibles = [...snapshot.inventory];
   state.displayedCollectibles = [...snapshot.displaySlots];
+  state.tablePlacements = snapshot.tablePlacements === undefined
+    ? []
+    : snapshot.tablePlacements.map((placement) => ({ ...placement }));
   state.activeSpin = visualSpin;
   state.agentStatus = snapshot.agentStatus;
   state.settings = { ...snapshot.settings };

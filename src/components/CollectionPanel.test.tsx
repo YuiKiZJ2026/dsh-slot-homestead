@@ -1,5 +1,4 @@
-import userEvent from "@testing-library/user-event";
-import { cleanup, render, screen } from "@testing-library/react";
+import { cleanup, fireEvent, render, screen } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { createInitialState } from "../domain/types";
 import { CollectionPanel } from "./CollectionPanel";
@@ -19,25 +18,53 @@ describe("CollectionPanel", () => {
       />,
     );
 
-    const items = screen.getAllByRole("listitem");
+    const items = screen.getAllByRole("gridcell");
     expect(items).toHaveLength(12);
     expect(items[0]).toHaveTextContent("小盆栽");
     expect(items[11]).toHaveTextContent("彗星徽章");
+    expect(screen.getByRole("grid", { name: "收藏品仓库格子" })).toBeInTheDocument();
     expect(screen.getByRole("img", { name: "未拥有：书本底座" })).toHaveClass("is-locked");
-    expect(screen.getByRole("button", { name: "展示 小盆栽" })).toBeInTheDocument();
-    expect(screen.getByText("星夜观测 0 / 3")).toBeInTheDocument();
+    expect(screen.getByRole("gridcell", { name: "小盆栽，仓库中，可拖到桌面" })).toHaveAttribute("draggable", "true");
+    expect(screen.getByText(/星夜观测 0 \/ 3/)).toBeInTheDocument();
   });
 
-  it("toggles an owned collectible between display and storage", async () => {
-    const onSetDisplayed = vi.fn();
+  it("returns a displayed item when it is dragged back over the storage grid", async () => {
+    const onSetPlacement = vi.fn();
     const state = createInitialState();
-    state.ownedCollectibles = ["plant"];
-    state.displayedCollectibles = ["plant"];
+    state.ownedCollectibles = ["plant", "crystal"];
+    state.tablePlacements = [
+      { itemId: "crystal", positionId: "left-rear-round" },
+    ];
+    state.displayedCollectibles = ["crystal"];
     render(
-      <CollectionPanel open state={state} onClose={() => undefined} onSetDisplayed={onSetDisplayed} />,
+      <CollectionPanel
+        open
+        state={state}
+        onClose={() => undefined}
+        onSetPlacement={onSetPlacement}
+      />,
     );
 
-    await userEvent.click(screen.getByRole("button", { name: "收起 小盆栽" }));
-    expect(onSetDisplayed).toHaveBeenCalledWith("plant", false);
+    const transfer = dataTransfer();
+    fireEvent.dragStart(screen.getByRole("gridcell", { name: "发光水晶，桌面上，可拖动" }), {
+      dataTransfer: transfer,
+    });
+    fireEvent.dragOver(screen.getByRole("grid", { name: "收藏品仓库格子" }), {
+      dataTransfer: transfer,
+    });
+    fireEvent.drop(screen.getByRole("grid", { name: "收藏品仓库格子" }), {
+      dataTransfer: transfer,
+    });
+    expect(onSetPlacement).toHaveBeenCalledWith("crystal", null);
   });
 });
+
+function dataTransfer() {
+  const values = new Map<string, string>();
+  return {
+    effectAllowed: "all",
+    dropEffect: "none",
+    setData(type: string, value: string) { values.set(type, value); },
+    getData(type: string) { return values.get(type) ?? ""; },
+  };
+}

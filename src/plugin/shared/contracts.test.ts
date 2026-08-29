@@ -25,11 +25,11 @@ describe("reported token usage contract", () => {
 });
 
 describe("token energy state contract", () => {
-  it.each([0, 2_999])("accepts progress within the token remainder range: %i", (progress) => {
+  it.each([0, 9_999])("accepts progress within the token remainder range: %i", (progress) => {
     expect(tokenEnergyStateSchema.parse({ progress, dailyCoins: {} }).progress).toBe(progress);
   });
 
-  it.each([-1, 3_000, 0.5])("rejects progress outside the token remainder range: %i", (progress) => {
+  it.each([-1, 10_000, 0.5])("rejects progress outside the token remainder range: %i", (progress) => {
     expect(() => tokenEnergyStateSchema.parse({ progress, dailyCoins: {} })).toThrow();
   });
 });
@@ -61,10 +61,11 @@ describe("authoritative host contracts", () => {
     });
 
     expect(migrated).toMatchObject({
-      schemaVersion: 2,
+      schemaVersion: 3,
       revision: 9,
-      tokenEnergy: { progress: 700, dailyCoins: {} },
-      tokenUsageWatermarks: {
+      tokenEnergy: { progress: 0, dailyCoins: {} },
+      tokenUsageWatermarks: {},
+      legacyWeightedUsageWatermarks: {
         "session-a": 17,
         "workspace:session-b": 4,
       },
@@ -131,9 +132,33 @@ describe("authoritative host contracts", () => {
     { ...common, type: "settleSpin", spinId: "spin-1" },
     { ...common, type: "buyItem", itemId: "plant" },
     { ...common, type: "setDisplay", itemId: "plant", displayed: true },
+    { ...common, type: "setPlacement", itemId: "plant", positionId: "left-front-round" },
+    { ...common, type: "setPlacement", itemId: "plant", positionId: null },
     { ...common, type: "updateSettings", patch: { muted: false, scale: 2 } },
   ])("accepts the strict $type command variant", (request) => {
     expect(commandRequestSchema.parse(request)).toEqual(request);
     expect(() => commandRequestSchema.parse({ ...request, unexpected: true })).toThrow();
+  });
+
+  it("rejects a table position that is not one of the twelve scene surfaces", () => {
+    expect(() => commandRequestSchema.parse({
+      ...common,
+      type: "setPlacement",
+      itemId: "plant",
+      positionId: "outside-the-table",
+    })).toThrow();
+  });
+
+  it("accepts and bounds the persisted desktop companion scale", () => {
+    expect(commandRequestSchema.parse({
+      ...common,
+      type: "updateSettings",
+      patch: { companionScale: 1.25 },
+    })).toMatchObject({ patch: { companionScale: 1.25 } });
+    expect(commandRequestSchema.safeParse({
+      ...common,
+      type: "updateSettings",
+      patch: { companionScale: 1.7 },
+    }).success).toBe(false);
   });
 });

@@ -3,6 +3,7 @@ import { createElement, type ComponentType } from "react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import type { PublicSnapshot } from "../shared/contracts";
 import { apply, inject } from "./index";
+import { PLUGIN_STYLE } from "./style";
 
 afterEach(() => {
   cleanup();
@@ -10,38 +11,58 @@ afterEach(() => {
   document.head.querySelectorAll("style[data-dsh-slot-widget]").forEach((node) => node.remove());
 });
 
-describe("DSH conversation view", () => {
-  it("registers the official slot, reads its sessionId prop, and removes materialized styles", async () => {
-    let View: ComponentType<{ sessionId: string }> | null = null;
+describe("DSH shell companion", () => {
+  it("lets transparent overlay regions pass clicks through while keeping controls interactive", () => {
+    expect(PLUGIN_STYLE).toMatch(
+      /\.dsh-slot-widget-root\.desktop--overlay\s*\{[^}]*pointer-events:\s*none;/,
+    );
+    expect(PLUGIN_STYLE).toMatch(
+      /\.dsh-slot-widget-root\.desktop--overlay \.slot-widget canvas\s*\{[^}]*pointer-events:\s*none;/,
+    );
+    for (const selector of ["\\.widget-launchers \\.pixel-button", "\\.utility-panel", "\\.scene-control"]) {
+      expect(PLUGIN_STYLE).toMatch(new RegExp(
+        `\\.dsh-slot-widget-root\\.desktop--overlay ${selector}\\s*\\{[^}]*pointer-events:\\s*auto;`,
+      ));
+    }
+  });
+
+  it("registers the official root overlay and renders without an active conversation", async () => {
+    let View: ComponentType | null = null;
     const register = vi.fn((definition, component) => {
       expect(definition).toEqual({
-        name: "conversation.view",
+        name: "shell.overlay",
         id: "dsh-slot-widget",
-        label: "老虎机",
         order: 20,
       });
       View = component;
       return () => undefined;
     });
     const slotInject = vi.fn((name, factory) => {
-      expect(name).toBe("conversation.view");
+      expect(name).toBe("shell.overlay");
       return factory();
     });
     apply({ slots: { inject: slotInject, register } });
     expect(inject).toEqual(["slots"]);
     expect(View).not.toBeNull();
 
-    const fetcher = vi.fn<typeof fetch>().mockResolvedValue(new Response(JSON.stringify({
-      snapshot: snapshot(),
-    }), { status: 200, headers: { "content-type": "application/json" } }));
+    const fetcher = vi.fn<typeof fetch>().mockImplementation(async (input) => {
+      const address = String(input);
+      return new Response(JSON.stringify(address.includes("/companion")
+        ? { status: "unavailable" }
+        : { snapshot: snapshot() }), {
+        status: 200,
+        headers: { "content-type": "application/json" },
+      });
+    });
     vi.stubGlobal("fetch", fetcher);
-    const { unmount } = render(createElement(View!, { sessionId: "session from props/?" }));
+    const { unmount } = render(createElement(View!));
 
     await screen.findByRole("application", { name: "DSH 桌面老虎机" });
     await waitFor(() => expect(fetcher).toHaveBeenCalledWith(
-      "/api/dsh-slot-widget/state?sessionId=session+from+props%2F%3F",
+      "/api/dsh-slot-widget/state?sessionId=dsh-slot-widget-global",
       expect.objectContaining({ method: "GET" }),
     ));
+    expect(screen.getByRole("application", { name: "DSH 桌面老虎机" })).toHaveClass("desktop--overlay");
     expect(document.head.querySelector("style[data-dsh-slot-widget]")).not.toBeNull();
 
     unmount();

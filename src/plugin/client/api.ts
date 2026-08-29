@@ -32,17 +32,24 @@ export interface GameApi {
 }
 
 export class HttpGameApi implements GameApi {
-  constructor(private readonly fetcher: typeof fetch = globalThis.fetch) {}
+  private readonly baseUrl: string;
+
+  constructor(
+    private readonly fetcher: typeof fetch = globalThis.fetch.bind(globalThis),
+    baseUrl = "",
+  ) {
+    this.baseUrl = baseUrl.replace(/\/$/, "");
+  }
 
   async getSnapshot(sessionId: string, signal?: AbortSignal): Promise<PublicSnapshot> {
     const query = new URLSearchParams({ sessionId });
-    const response = await this.fetcher(`${STATE_PATH}?${query}`, { method: "GET", signal });
+    const response = await this.fetcher(`${this.baseUrl}${STATE_PATH}?${query}`, { method: "GET", signal });
     if (response.status !== 200) throw await responseError(response);
     return successEnvelopeSchema.parse(await response.json()).snapshot;
   }
 
   async command(request: CommandRequest, signal?: AbortSignal): Promise<CommandResult> {
-    const response = await this.fetcher(COMMAND_PATH, {
+    const response = await this.fetcher(`${this.baseUrl}${COMMAND_PATH}`, {
       method: "POST",
       headers: { "content-type": "application/json" },
       body: JSON.stringify(request),

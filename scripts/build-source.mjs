@@ -15,9 +15,13 @@ const INCLUDED_ROOTS = new Set([
   "tests",
 ]);
 const INCLUDED_FILES = new Set([
+  ".gitattributes",
   ".gitignore",
+  "CHANGELOG.md",
+  "CONTRIBUTING.md",
   "LICENSE",
   "README.md",
+  "SECURITY.md",
   "cordis.patch.yml",
   "design-qa.md",
   "index.html",

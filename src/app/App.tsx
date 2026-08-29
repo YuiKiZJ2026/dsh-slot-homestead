@@ -125,7 +125,7 @@ export function App({ createRuntime = createDefaultRuntime }: AppProps = {}) {
           className="pixel-button"
           aria-expanded={utilityPanel === "collection"}
           onClick={() => toggleUtilityPanel("collection")}
-        >打开收藏柜</button>
+        >打开收藏盒</button>
         <button
           type="button"
           className="pixel-button"
@@ -145,7 +145,7 @@ export function App({ createRuntime = createDefaultRuntime }: AppProps = {}) {
           open={utilityPanel === "collection"}
           state={controller.state}
           onClose={() => setUtilityPanel(null)}
-          onSetDisplayed={controller.setDisplayed}
+          onSetPlacement={controller.setPlacement}
         />
         <ShopPanel
           open={utilityPanel === "shop"}
@@ -167,8 +167,8 @@ export function App({ createRuntime = createDefaultRuntime }: AppProps = {}) {
           state={controller.state}
           mode={mode}
           error={controller.error}
-          onInsertCoin={controller.insertCoin}
-          onPullLever={controller.pullLever}
+          onPlay={controller.play}
+          onSetPlacement={controller.setPlacement}
           onAnimationEvent={controller.advanceAnimation}
         />
       </section>

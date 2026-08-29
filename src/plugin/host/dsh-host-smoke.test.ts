@@ -1,7 +1,14 @@
 import type { Context } from "@deepseek-ai/cordis";
 import { describe, expect, it, vi } from "vitest";
 import { createInitialHostState, type GameDomain } from "./domain";
-import { COMMAND_PATH, STATE_PATH, type HostWebRoute } from "./http";
+import {
+  COMMAND_PATH,
+  COMPANION_PATH,
+  COMPANION_SCRIPT_PATH,
+  COMPANION_WINDOW_PATH,
+  STATE_PATH,
+  type HostWebRoute,
+} from "./http";
 import { apply, gameDomainSpec } from "./index";
 
 describe("DSH Host fake-Context composition (not a real DSH install)", () => {
@@ -29,6 +36,7 @@ describe("DSH Host fake-Context composition (not a real DSH install)", () => {
       storageDomain: { open },
       sessions: { list },
       webServer: {
+        port: 43120,
         register: vi.fn((route: HostWebRoute) => {
           registeredRoutes.push(route);
           return () => {
@@ -57,12 +65,18 @@ describe("DSH Host fake-Context composition (not a real DSH install)", () => {
     expect(registeredRoutes.map(({ kind, path }) => ({ kind, path }))).toEqual([
       { kind: "exact", path: STATE_PATH },
       { kind: "exact", path: COMMAND_PATH },
+      { kind: "exact", path: COMPANION_PATH },
+      { kind: "exact", path: COMPANION_WINDOW_PATH },
+      { kind: "exact", path: COMPANION_SCRIPT_PATH },
     ]);
 
     expect(effectDisposer).toBeTypeOf("function");
     await effectDisposer?.();
 
     expect(disposalOrder).toEqual([
+      `route:${COMPANION_SCRIPT_PATH}`,
+      `route:${COMPANION_WINDOW_PATH}`,
+      `route:${COMPANION_PATH}`,
       `route:${COMMAND_PATH}`,
       `route:${STATE_PATH}`,
       "listener:agent/status",

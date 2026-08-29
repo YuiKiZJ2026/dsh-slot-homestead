@@ -1,13 +1,16 @@
-import type { CSSProperties } from "react";
+import { type CSSProperties, type DragEvent as ReactDragEvent } from "react";
 import { COLLECTIBLES } from "../domain/catalog";
-import type { CollectibleDefinition, GameState, Rarity } from "../domain/types";
+import { legacyPlacements } from "../domain/table-positions";
+import type { CollectibleDefinition, GameState, Rarity, TablePositionId } from "../domain/types";
 import { ASSET_FRAMES } from "../game/renderer/assets";
+import { beginCollectibleDrag, draggedCollectibleId, endCollectibleDrag } from "./collectible-drag";
 
 export interface CollectionPanelProps {
   open: boolean;
   state: GameState;
   onClose(): void;
-  onSetDisplayed(id: string, displayed: boolean): void;
+  onSetPlacement?(id: string, positionId: TablePositionId | null): void;
+  onSetDisplayed?(id: string, displayed: boolean): void;
   mutationsDisabled?: boolean;
   collectiblesUrl?: string;
 }
@@ -31,6 +34,7 @@ export function CollectionPanel({
   open,
   state,
   onClose,
+  onSetPlacement,
   onSetDisplayed,
   mutationsDisabled = false,
   collectiblesUrl,
@@ -38,35 +42,76 @@ export function CollectionPanel({
   if (!open) return null;
 
   const owned = new Set(state.ownedCollectibles);
-  const displayed = new Set(state.displayedCollectibles);
+  const placements = state.tablePlacements.length > 0
+    ? state.tablePlacements
+    : legacyPlacements(state.displayedCollectibles);
+  const placementByItem = new Map(placements.map((placement) => [placement.itemId, placement]));
   const starryProgress = state.ownedCollectibles.filter((id) => STARRY_IDS.has(id)).length;
+  const setPlacement = (itemId: string, positionId: TablePositionId | null): void => {
+    if (onSetPlacement !== undefined) {
+      onSetPlacement(itemId, positionId);
+    } else {
+      onSetDisplayed?.(itemId, positionId !== null);
+    }
+  };
+  const returnDraggedItem = (event: ReactDragEvent<HTMLElement>): void => {
+    const itemId = draggedCollectibleId(event.dataTransfer);
+    if (itemId === null || !placementByItem.has(itemId) || mutationsDisabled) return;
+    event.preventDefault();
+    setPlacement(itemId, null);
+    endCollectibleDrag();
+  };
 
   return (
-    <section className="utility-panel collection-panel" role="dialog" aria-label="收藏柜">
-      <PanelHeader title="收藏柜" closeLabel="关闭收藏柜" onClose={onClose} />
-      <p className="set-progress">星夜观测 {starryProgress} / 3</p>
-      <ul className="collectible-list">
+    <section className="utility-panel collection-panel" role="dialog" aria-label="收藏盒">
+      <PanelHeader title="收藏盒" closeLabel="关闭收藏盒" onClose={onClose} />
+      <p className="set-progress">抽到的收藏品会先存放在这里 · 星夜观测 {starryProgress} / 3</p>
+      <ul
+        className="collectible-grid"
+        role="grid"
+        aria-label="收藏品仓库格子"
+        onDragOver={(event) => {
+          const itemId = draggedCollectibleId(event.dataTransfer);
+          if (itemId !== null && placementByItem.has(itemId) && !mutationsDisabled) {
+            event.preventDefault();
+            event.dataTransfer.dropEffect = "move";
+          }
+        }}
+        onDrop={returnDraggedItem}
+      >
         {COLLECTIBLES.map((item) => {
           const isOwned = owned.has(item.id);
-          const isDisplayed = displayed.has(item.id);
+          const placement = placementByItem.get(item.id);
+          const isDisplayed = placement !== undefined;
           return (
-            <li className="collectible-row" key={item.id}>
+            <li
+              className={`collectible-cell${isDisplayed ? " is-displayed" : ""}${isOwned ? "" : " is-locked"}`}
+              key={item.id}
+              role="gridcell"
+              aria-label={isOwned
+                ? `${item.name}，${isDisplayed ? "桌面上" : "仓库中"}，可拖${isDisplayed ? "动" : "到桌面"}`
+                : `${item.name}，未拥有`}
+              draggable={isOwned && !mutationsDisabled}
+              onDragStart={(event) => beginCollectibleDrag(event.dataTransfer, item.id)}
+              onDragEnd={endCollectibleDrag}
+            >
               <CollectibleSprite item={item} owned={isOwned} imageUrl={collectiblesUrl} />
-              <span className="collectible-row__copy">
+              <span className="collectible-cell__copy">
                 <strong>{item.name}</strong>
-                <small>{RARITY_NAMES[item.rarity]} · {EFFECT_NAMES[item.effect.kind]}</small>
+                <small>{isOwned ? (isDisplayed ? "桌面上 · 可拖动" : "拖到桌面") : "未拥有"}</small>
+                <span className="visually-hidden">{RARITY_NAMES[item.rarity]} · {EFFECT_NAMES[item.effect.kind]}</span>
               </span>
-              <button
-                type="button"
-                className="pixel-button pixel-button--compact"
-                disabled={!isOwned || mutationsDisabled}
-                aria-label={isOwned
-                  ? `${isDisplayed ? "收起" : "展示"} ${item.name}`
-                  : `未拥有 ${item.name}`}
-                onClick={() => onSetDisplayed(item.id, !isDisplayed)}
-              >
-                {isOwned ? (isDisplayed ? "收起" : "展示") : "未拥有"}
-              </button>
+              {isDisplayed ? (
+                <button
+                  type="button"
+                  className="collectible-cell__return"
+                  disabled={mutationsDisabled}
+                  aria-label={`收回 ${item.name} 到收藏盒`}
+                  onClick={() => setPlacement(item.id, null)}
+                >
+                  收回
+                </button>
+              ) : null}
             </li>
           );
         })}

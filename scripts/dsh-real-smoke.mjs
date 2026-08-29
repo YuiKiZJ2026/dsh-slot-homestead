@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 
 import { randomUUID } from "node:crypto";
+import { readFileSync } from "node:fs";
 import { mkdtemp, rm, stat } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { basename, join, resolve } from "node:path";
@@ -464,7 +465,7 @@ function parseArguments(args) {
   const result = {
     dsh: "dsh",
     dshEntry: undefined,
-    tgz: "./dsh-desktop-slot-widget-0.2.0.tgz",
+    tgz: defaultPluginArchive(),
   };
   for (let index = 0; index < args.length; index += 2) {
     const flag = args[index];
@@ -476,6 +477,20 @@ function parseArguments(args) {
     else throw new Error(`Unknown argument ${flag}`);
   }
   return result;
+}
+
+export function defaultPluginArchive() {
+  const manifest = JSON.parse(
+    readFileSync(resolve(process.cwd(), "package.json"), "utf8"),
+  );
+  if (
+    !isRecord(manifest) ||
+    typeof manifest.name !== "string" || manifest.name === "" ||
+    typeof manifest.version !== "string" || manifest.version === ""
+  ) {
+    throw new Error("package.json must contain a non-empty name and version");
+  }
+  return `./${manifest.name}-${manifest.version}.tgz`;
 }
 
 export function createDshInvocation(command, entry, nodeExecutable = process.execPath) {

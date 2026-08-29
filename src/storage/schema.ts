@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { TABLE_POSITION_IDS } from "../domain/table-positions";
 import type { DateKey, GameState } from "../domain/types";
 
 const NonNegativeIntegerSchema = z.number().finite().int().nonnegative();
@@ -55,6 +56,24 @@ const UniqueIdentifierArraySchema = z.array(IdentifierSchema).refine(
   (values) => new Set(values).size === values.length,
   "Expected unique identifiers",
 );
+const TablePlacementSchema = z.strictObject({
+  itemId: IdentifierSchema,
+  positionId: z.enum(TABLE_POSITION_IDS),
+});
+const TablePlacementsSchema = z.array(TablePlacementSchema).max(12).superRefine((placements, context) => {
+  const items = new Set<string>();
+  const positions = new Set<string>();
+  for (const [index, placement] of placements.entries()) {
+    if (items.has(placement.itemId)) {
+      context.addIssue({ code: "custom", path: [index, "itemId"], message: "Expected unique item placements" });
+    }
+    if (positions.has(placement.positionId)) {
+      context.addIssue({ code: "custom", path: [index, "positionId"], message: "Expected unique table positions" });
+    }
+    items.add(placement.itemId);
+    positions.add(placement.positionId);
+  }
+});
 
 export const GameStateSchema: z.ZodType<GameState> = z.strictObject({
   schemaVersion: z.literal(1),
@@ -69,6 +88,7 @@ export const GameStateSchema: z.ZodType<GameState> = z.strictObject({
   pityMisses: NonNegativeIntegerSchema,
   ownedCollectibles: UniqueIdentifierArraySchema,
   displayedCollectibles: UniqueIdentifierArraySchema,
+  tablePlacements: TablePlacementsSchema.optional().transform((placements) => placements ?? []),
   activeSpin: ResolvedSpinSchema.nullable(),
   agentStatus: z.enum(["idle", "working", "completed", "error"]),
   settings: z.strictObject({

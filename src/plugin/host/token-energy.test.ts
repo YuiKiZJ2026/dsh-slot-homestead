@@ -1,13 +1,13 @@
 import { describe, expect, it } from "vitest";
 import type { EligibleTurnUsage, HostState } from "../shared/contracts";
 import { hostStateSchema } from "../shared/contracts";
-import { applyEligibleTurnUsage, weightedTokenUsage } from "./token-energy";
+import { actualTokenUsage, applyEligibleTurnUsage } from "./token-energy";
 
 const day = "2026-08-26";
 
 function state(overrides: Partial<HostState> = {}): HostState {
   return {
-    schemaVersion: 2,
+    schemaVersion: 3,
     revision: 4,
     wallet: 0,
     lastGrantedLocalDate: null,
@@ -49,21 +49,21 @@ describe("token energy", () => {
     expect(next).not.toHaveProperty("tokenUsageReceipts");
   });
 
-  it("weights disjoint usage and never adds reasoning twice", () => {
+  it("counts the four authoritative provider fields and never adds reasoning twice", () => {
     expect(
-      weightedTokenUsage({
+      actualTokenUsage({
         inputTokens: 1_000,
         outputTokens: 2_500,
         cacheWriteTokens: 1_000,
         cacheReadTokens: 5_000,
         reasoningTokens: 2_000,
       }),
-    ).toBe(2_800);
+    ).toBe(9_500);
   });
 
   it("converts carried progress plus eligible usage into one coin", () => {
     const next = applyEligibleTurnUsage(
-      state({ tokenEnergy: { progress: 2_800, dailyCoins: {} } }),
+      state({ tokenEnergy: { progress: 9_800, dailyCoins: {} } }),
       event([17], 200),
       day,
     );
@@ -77,18 +77,19 @@ describe("token energy", () => {
     });
   });
 
-  it("credits at most three thousand effective tokens for one turn", () => {
-    const next = applyEligibleTurnUsage(state(), event([18], 10_000), day);
+  it("credits every actual token and can award multiple coins for one large turn", () => {
+    const next = applyEligibleTurnUsage(state(), event([18], 25_000), day);
 
     expect(next).toMatchObject({
       revision: 5,
-      wallet: 1,
-      tokenEnergy: { progress: 0, dailyCoins: { [day]: 1 } },
+      wallet: 2,
+      daily: { [day]: { workCoins: 2 } },
+      tokenEnergy: { progress: 5_000, dailyCoins: { [day]: 2 } },
     });
   });
 
   it.each([
-    state({ tokenEnergy: { progress: 2_800, dailyCoins: { [day]: 8 } } }),
+    state({ tokenEnergy: { progress: 9_800, dailyCoins: { [day]: 8 } } }),
     state({ daily: { [day]: { workCoins: 25 } } }),
   ])("advances replay protection without accumulating usage once a daily cap is reached", (base) => {
     const next = applyEligibleTurnUsage(base, event([19], 200), day);
@@ -103,9 +104,9 @@ describe("token energy", () => {
   });
 
   it("does not change the wallet when the same sequence is submitted after restart", () => {
-    const once = applyEligibleTurnUsage(state(), event([20], 3_000), day);
+    const once = applyEligibleTurnUsage(state(), event([20], 10_000), day);
     const restarted = hostStateSchema.parse(JSON.parse(JSON.stringify(once)));
-    const twice = applyEligibleTurnUsage(restarted, event([20], 3_000), day);
+    const twice = applyEligibleTurnUsage(restarted, event([20], 10_000), day);
 
     expect(twice).toBe(restarted);
     expect(twice.wallet).toBe(1);
@@ -114,15 +115,15 @@ describe("token energy", () => {
   it("rejects a whole multi-step turn when any sequence is at or below the watermark", () => {
     const base = state({ tokenUsageWatermarks: { "session-1": 21 } });
 
-    expect(applyEligibleTurnUsage(base, event([21, 22], 3_000), day)).toBe(base);
+    expect(applyEligibleTurnUsage(base, event([21, 22], 10_000), day)).toBe(base);
   });
 
   it("aggregates matching multi-step usages and advances to the final sequence", () => {
     const next = applyEligibleTurnUsage(state(), {
       ...event([24, 29], 0),
       stepUsages: [
-        { inputTokens: 0, outputTokens: 1_000 },
-        { inputTokens: 0, outputTokens: 2_000 },
+        { inputTokens: 0, outputTokens: 4_000 },
+        { inputTokens: 0, outputTokens: 6_000 },
       ],
     }, day);
 
@@ -131,6 +132,47 @@ describe("token energy", () => {
       tokenEnergy: { progress: 0, dailyCoins: { [day]: 1 } },
       tokenUsageWatermarks: { "session-1": 29 },
     });
+  });
+
+  it("migrates weighted v2 progress by replaying exact history without duplicating old coins", () => {
+    const migrated = hostStateSchema.parse({
+      schemaVersion: 2,
+      revision: 59,
+      wallet: 2,
+      lastGrantedLocalDate: null,
+      daily: {},
+      tokenEnergy: { progress: 646, dailyCoins: {} },
+      tokenUsageWatermarks: { "session-current": 45 },
+      pityCount: 0,
+      inventory: [],
+      displaySlots: [],
+      settings: { muted: true, reducedMotion: false, scale: 1 },
+      pendingSpin: null,
+      recentCommands: {},
+    });
+
+    expect(migrated).toMatchObject({
+      schemaVersion: 3,
+      tokenEnergy: { progress: 0, dailyCoins: {} },
+      tokenUsageWatermarks: {},
+      legacyWeightedUsageWatermarks: { "session-current": 45 },
+    });
+
+    const replayed = applyEligibleTurnUsage(migrated, {
+      sessionId: "session-current",
+      turn: 2,
+      usageSeqs: [45],
+      stepUsages: [{ inputTokens: 6_333, outputTokens: 13 }],
+      occurredAt: "2026-08-26T12:00:00+08:00",
+    }, day);
+
+    expect(replayed).toMatchObject({
+      revision: 60,
+      wallet: 2,
+      tokenEnergy: { progress: 6_346, dailyCoins: {} },
+      tokenUsageWatermarks: { "session-current": 45 },
+    });
+    expect(replayed).not.toHaveProperty("legacyWeightedUsageWatermarks");
   });
 
   it("uses exact legacy receipts to recover a hole below the migrated v1 watermark", () => {
@@ -153,13 +195,17 @@ describe("token energy", () => {
       recentCommands: {},
     });
 
-    expect(applyEligibleTurnUsage(migrated, event([17], 3_000), day)).toBe(migrated);
-    expect(applyEligibleTurnUsage(migrated, event([29], 3_000), day)).toBe(migrated);
-    expect(applyEligibleTurnUsage(migrated, event([20], 3_000), day)).toMatchObject({
-      revision: 5,
+    const firstReceipt = applyEligibleTurnUsage(migrated, event([17], 3_000), day);
+    const recoveredHole = applyEligibleTurnUsage(firstReceipt, event([20], 7_000), day);
+    const finalReceipt = applyEligibleTurnUsage(recoveredHole, event([29], 3_000), day);
+
+    expect(finalReceipt).toMatchObject({
+      revision: 7,
       wallet: 2,
+      tokenEnergy: { progress: 3_000, dailyCoins: { [day]: 2 } },
       tokenUsageWatermarks: { "session-1": 29 },
     });
+    expect(finalReceipt).not.toHaveProperty("legacyWeightedUsageWatermarks");
     expect(migrated).not.toHaveProperty("tokenUsageReceipts");
   });
 

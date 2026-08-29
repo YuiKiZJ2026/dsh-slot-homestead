@@ -1,6 +1,4 @@
-import { COLLECTIBLES } from "../../domain/catalog";
-import type { AgentStatus, ReelSymbol } from "../../domain/types";
-import { DISPLAY_SLOTS } from "./assets";
+import type { AgentStatus, ReelSymbol, TablePlacement } from "../../domain/types";
 
 export interface AnimationInput {
   stage: "coin-inserted" | "spinning" | "highlight" | "payout" | "settled";
@@ -10,6 +8,7 @@ export interface AnimationInput {
   payoutCoinAmount: number;
   reels: readonly [ReelSymbol, ReelSymbol, ReelSymbol];
   displayed: string[];
+  placements: TablePlacement[];
   payoutCollectibleId: string | null;
   starryTheme: boolean;
   agentStatus: AgentStatus;
@@ -39,6 +38,7 @@ export interface SceneViewModel {
   coins: Array<{ x: number; y: number; startY: number; size: number }>;
   sparkles: Array<{ x: number; y: number; frame: number }>;
   displayed: string[];
+  placements: TablePlacement[];
   payoutCollectibleId: string | null;
   payoutCoinAmount: number;
   agentStatus: AgentStatus;
@@ -53,6 +53,7 @@ const REEL_SYMBOL_BELT: readonly ReelSymbol[] = [
   "coin", "leaf", "moon", "crystal", "robot", "leaf", "coin", "crystal", "moon", "robot",
 ];
 const PAYOUT_START = { x: 213, y: 143 } as const;
+const PAYOUT_STORAGE_TARGET = { x: 213, y: 166 } as const;
 const PHASE_DURATIONS: Record<AnimationInput["stage"], number> = {
   "coin-inserted": 320,
   spinning: 2_400,
@@ -87,6 +88,7 @@ export function animationFrameFor(input: AnimationInput): SceneViewModel {
       payoutPosition,
     ),
     displayed: [...input.displayed],
+    placements: input.placements.map((placement) => ({ ...placement })),
     payoutCollectibleId: input.payoutCollectibleId,
     payoutCoinAmount,
     agentStatus: input.agentStatus,
@@ -179,12 +181,10 @@ function samplePayoutPosition(
   direct: boolean,
 ): { x: number; y: number } | null {
   if (collectibleId === null) return null;
-  const index = COLLECTIBLES.findIndex((item) => item.id === collectibleId);
-  const target = index >= 0 ? DISPLAY_SLOTS[index] : PAYOUT_START;
   const progress = direct ? 1 : stage === "payout" ? clamp01(elapsedMs / 1_000) : 0;
   return {
-    x: Math.round(lerp(PAYOUT_START.x, target.x, progress)),
-    y: Math.round(lerp(PAYOUT_START.y, target.y, progress)),
+    x: Math.round(lerp(PAYOUT_START.x, PAYOUT_STORAGE_TARGET.x, progress)),
+    y: Math.round(lerp(PAYOUT_START.y, PAYOUT_STORAGE_TARGET.y, progress)),
   };
 }
 

@@ -1,4 +1,5 @@
 import { CATALOG_BY_ID } from "../../domain/catalog";
+import { TABLE_POSITIONS } from "../../domain/table-positions";
 import {
   commandRequestSchema,
   type CommandErrorCode,
@@ -21,6 +22,7 @@ export class InMemoryGameApi implements GameApi {
     pityCount: 0,
     inventory: ["plant"],
     displaySlots: ["plant"],
+    tablePlacements: [{ itemId: "plant", positionId: "left-rear-round" }],
     settings: { muted: true, reducedMotion: false, scale: 1 },
     pendingSpin: null,
     agentStatus: "idle",
@@ -98,7 +100,32 @@ export class InMemoryGameApi implements GameApi {
         const displaySlots = request.displayed
           ? [...new Set([...this.snapshot.displaySlots, request.itemId])].slice(0, 12)
           : this.snapshot.displaySlots.filter((id) => id !== request.itemId);
-        return this.success({ ...this.snapshot, displaySlots });
+        const currentPlacements = this.snapshot.tablePlacements ?? [];
+        const alreadyPlaced = currentPlacements.some(({ itemId }) => itemId === request.itemId);
+        const freePosition = TABLE_POSITIONS.find((position) => !currentPlacements.some(
+          ({ positionId }) => positionId === position.id,
+        ));
+        const tablePlacements = request.displayed
+          ? alreadyPlaced || freePosition === undefined
+            ? currentPlacements
+            : [...currentPlacements, { itemId: request.itemId, positionId: freePosition.id }]
+          : currentPlacements.filter(({ itemId }) => itemId !== request.itemId);
+        return this.success({ ...this.snapshot, displaySlots, tablePlacements });
+      }
+      case "setPlacement": {
+        if (!this.snapshot.inventory.includes(request.itemId)) return this.conflict("item-not-owned");
+        const current = this.snapshot.tablePlacements ?? [];
+        const withoutItem = current.filter(({ itemId, positionId }) => (
+          itemId !== request.itemId && (request.positionId === null || positionId !== request.positionId)
+        ));
+        const tablePlacements = request.positionId === null
+          ? withoutItem
+          : [...withoutItem, { itemId: request.itemId, positionId: request.positionId }];
+        return this.success({
+          ...this.snapshot,
+          displaySlots: tablePlacements.map(({ itemId }) => itemId),
+          tablePlacements,
+        });
       }
       case "updateSettings":
         return this.success({

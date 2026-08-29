@@ -1,5 +1,6 @@
 import { CATALOG_BY_ID, COLLECTIBLES } from "../domain/catalog";
-import type { GameState } from "../domain/types";
+import { legacyPlacements, TABLE_POSITIONS } from "../domain/table-positions";
+import type { GameState, TablePlacement, TablePositionId } from "../domain/types";
 
 const DISPLAY_SLOT_LIMIT = 12;
 const STARRY_NIGHT_SET = ["star-projector", "constellation-globe", "comet-badge"] as const;
@@ -19,7 +20,6 @@ export function settleActiveSpin(state: GameState, spinId: string): GameState {
 
   let wallet = state.wallet;
   let ownedCollectibles = state.ownedCollectibles;
-  let displayedCollectibles = state.displayedCollectibles;
 
   switch (spin.reward.kind) {
     case "coins":
@@ -30,7 +30,6 @@ export function settleActiveSpin(state: GameState, spinId: string): GameState {
       wallet += spin.reward.conversionCoins + spin.reward.bonusCoins;
       if (!spin.reward.isDuplicate && !ownedCollectibles.includes(spin.reward.collectibleId)) {
         ownedCollectibles = orderByCatalog([...ownedCollectibles, spin.reward.collectibleId]);
-        displayedCollectibles = addToDisplay(displayedCollectibles, spin.reward.collectibleId, ownedCollectibles);
       }
       break;
 
@@ -43,7 +42,8 @@ export function settleActiveSpin(state: GameState, spinId: string): GameState {
     wallet,
     pityMisses: spin.pityAfter,
     ownedCollectibles,
-    displayedCollectibles,
+    displayedCollectibles: [...state.displayedCollectibles],
+    tablePlacements: [...state.tablePlacements],
     activeSpin: { ...spin, stage: "settled" },
   };
 }
@@ -73,7 +73,8 @@ export function buyCollectible(state: GameState, id: string): PurchaseResult {
       ...state,
       wallet: state.wallet - collectible.price,
       ownedCollectibles,
-      displayedCollectibles: addToDisplay(state.displayedCollectibles, id, ownedCollectibles),
+      displayedCollectibles: [...state.displayedCollectibles],
+      tablePlacements: [...state.tablePlacements],
     },
   };
 }
@@ -92,7 +93,34 @@ export function setCollectibleDisplayed(state: GameState, id: string, displayed:
     return state;
   }
 
-  return { ...state, displayedCollectibles };
+  const existingPlacements = normalizedPlacements(state);
+  const tablePlacements = displayed
+    ? existingPlacements.some((placement) => placement.itemId === id)
+      ? existingPlacements
+      : addAtFirstFreePosition(existingPlacements, id)
+    : existingPlacements.filter((placement) => placement.itemId !== id);
+  return { ...state, displayedCollectibles, tablePlacements };
+}
+
+export function setCollectiblePlacement(
+  state: GameState,
+  id: string,
+  positionId: TablePositionId | null,
+): GameState {
+  if (CATALOG_BY_ID[id] === undefined || !state.ownedCollectibles.includes(id)) return state;
+  const current = normalizedPlacements(state);
+  const withoutItem = current.filter((placement) => (
+    placement.itemId !== id && (positionId === null || placement.positionId !== positionId)
+  ));
+  const tablePlacements = positionId === null
+    ? withoutItem
+    : [...withoutItem, { itemId: id, positionId }];
+  if (samePlacements(tablePlacements, current)) return state;
+  return {
+    ...state,
+    tablePlacements,
+    displayedCollectibles: tablePlacements.map((placement) => placement.itemId),
+  };
 }
 
 export function hasStarryNightTheme(state: GameState): boolean {
@@ -119,6 +147,37 @@ function addToDisplay(
   }
 
   return normalizeDisplayed(ownedCollectibles, [...normalizedDisplay, id]);
+}
+
+function normalizedPlacements(state: GameState): TablePlacement[] {
+  const source = state.tablePlacements.length > 0
+    ? state.tablePlacements
+    : legacyPlacements(state.displayedCollectibles);
+  const owned = new Set(state.ownedCollectibles);
+  const seenItems = new Set<string>();
+  const seenPositions = new Set<TablePositionId>();
+  return source.filter((placement) => {
+    if (
+      !owned.has(placement.itemId) ||
+      seenItems.has(placement.itemId) ||
+      seenPositions.has(placement.positionId)
+    ) return false;
+    seenItems.add(placement.itemId);
+    seenPositions.add(placement.positionId);
+    return true;
+  }).map((placement) => ({ ...placement }));
+}
+
+function addAtFirstFreePosition(placements: TablePlacement[], itemId: string): TablePlacement[] {
+  const occupied = new Set(placements.map((placement) => placement.positionId));
+  const position = TABLE_POSITIONS.find((candidate) => !occupied.has(candidate.id));
+  return position === undefined ? placements : [...placements, { itemId, positionId: position.id }];
+}
+
+function samePlacements(left: readonly TablePlacement[], right: readonly TablePlacement[]): boolean {
+  return left.length === right.length && left.every((placement, index) => (
+    placement.itemId === right[index]?.itemId && placement.positionId === right[index]?.positionId
+  ));
 }
 
 function normalizeDisplayed(ownedCollectibles: readonly string[], displayedCollectibles: readonly string[]): string[] {

@@ -1,0 +1,39 @@
+# Changelog
+
+本文件记录会影响安装、兼容性、存档或玩法的改动。版本号遵循语义化版本。
+
+## [Unreleased]
+
+- 补齐 GitHub 仓库元数据、贡献指南、安全政策和发布展示图。
+- 让真实 DSH 冒烟测试从 `package.json` 读取当前安装包版本，避免 CI 验证旧包。
+
+## [0.6.0] - 2026-08-29
+
+### Added
+
+- 增加随 DSH Desktop 启动的透明桌面伴生窗。
+- 支持窗口拖动、四边收起、边缘标签展开和 0.75 至 1.60 倍缩放。
+- 增加 12 格收藏盒、桌面圆台吸附、收藏品换位和回收操作。
+- 增加基于权威会话 usage 的 Token 能量与硬币奖励。
+- 增加真实 DSH 安装、重启、持久化和卸载冒烟测试。
+
+### Changed
+
+- 将收藏品放置位置迁移到稳定桌位 ID，旧存档会按原顺序迁移。
+- 按素材可见像素边界校正收藏品的比例、中心线和底边。
+- 插件构建产物增加独立 companion 页面、脚本和声明文件。
+
+### Fixed
+
+- 修复随机 loopback 端口变化后伴生窗无法继续读取存档的问题。
+- 修复大 turn 的 Token 奖励被截断、重复计数或跨重启丢失的问题。
+- 修复发布检查可能读取旧版本 tgz 的问题。
+
+## [0.2.0] - 2026-08-27
+
+- 交付首个可复现构建的 DSH 插件包。
+- 增加 Host 持久化、每日硬币、老虎机动画、收藏系统和安装包契约测试。
+
+[Unreleased]: https://github.com/YuiKiZJ2026/dsh-desktop-slot-widget/compare/v0.6.0...HEAD
+[0.6.0]: https://github.com/YuiKiZJ2026/dsh-desktop-slot-widget/releases/tag/v0.6.0
+[0.2.0]: https://github.com/YuiKiZJ2026/dsh-desktop-slot-widget/releases/tag/v0.2.0

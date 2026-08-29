@@ -5,6 +5,8 @@ playwright-report/
 test-results/
 tmp/
 /.plugin-build/
+/companion/
+/coverage-debug/
 /assets/
 /lib/
 /*.tgz

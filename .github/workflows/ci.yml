@@ -56,7 +56,7 @@ jobs:
       - name: Build installable plugin package
         run: npm run build
       - name: Install, boot, restart, persist, and remove in real DSH Web
-        run: node scripts/dsh-real-smoke.mjs --dsh dsh --tgz ./dsh-desktop-slot-widget-0.2.0.tgz
+        run: node scripts/dsh-real-smoke.mjs --dsh dsh
 
   windows-visual:
     runs-on: windows-2022

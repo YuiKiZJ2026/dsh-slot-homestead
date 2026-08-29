@@ -227,7 +227,7 @@ describe("useGameController", () => {
     expect(repository.load()).toEqual(result.current.state);
   });
 
-  it("persists buying and changing an owned collectible display", async () => {
+  it("keeps purchases in storage until the player chooses a table position", async () => {
     const repository = new StateRepository(localStorage);
     seed(repository, { wallet: 20, lastAwardDate: "2026-08-26" });
     const { result } = createHarness({ repository });
@@ -237,11 +237,18 @@ describe("useGameController", () => {
     expect(repository.load()).toMatchObject({
       wallet: 14,
       ownedCollectibles: ["plant"],
-      displayedCollectibles: ["plant"],
+      displayedCollectibles: [],
+      tablePlacements: [],
     });
 
-    act(() => { result.current.setDisplayed("plant", false); });
-    expect(repository.load().displayedCollectibles).toEqual([]);
+    act(() => { result.current.setPlacement("plant", "left-front-round"); });
+    expect(repository.load()).toMatchObject({
+      displayedCollectibles: ["plant"],
+      tablePlacements: [{ itemId: "plant", positionId: "left-front-round" }],
+    });
+
+    act(() => { result.current.setPlacement("plant", null); });
+    expect(repository.load()).toMatchObject({ displayedCollectibles: [], tablePlacements: [] });
   });
 
   it("persists settings patches without erasing other settings", async () => {

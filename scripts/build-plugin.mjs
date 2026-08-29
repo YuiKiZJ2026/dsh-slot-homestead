@@ -17,7 +17,9 @@ const root = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 const staging = resolve(root, ".plugin-build");
 const lib = resolve(root, "lib");
 const assets = resolve(root, "assets");
-const archive = resolve(root, "dsh-desktop-slot-widget-0.2.0.tgz");
+const companion = resolve(root, "companion");
+const manifest = JSON.parse(readFileSync(resolve(root, "package.json"), "utf8"));
+const archive = resolve(root, `dsh-desktop-slot-widget-${manifest.version}.tgz`);
 const configFile = resolve(root, "vite.plugin.config.ts");
 const require = createRequire(import.meta.url);
 const npmPackPath = [
@@ -35,11 +37,13 @@ const npmPack = require(npmPackPath);
 rmSync(staging, { force: true, recursive: true });
 rmSync(lib, { force: true, recursive: true });
 rmSync(assets, { force: true, recursive: true });
+rmSync(companion, { force: true, recursive: true });
 rmSync(archive, { force: true });
 mkdirSync(lib, { recursive: true });
 
 await build({ configFile, mode: "plugin-host" });
 await build({ configFile, mode: "plugin-client" });
+await build({ configFile, mode: "plugin-companion" });
 
 const clientDir = resolve(staging, "client");
 const clientFiles = readdirSync(clientDir).sort();
@@ -87,10 +91,25 @@ mkdirSync(assets, { recursive: true });
 for (const name of ["collectibles.png", "reel-symbols-runtime.png", "scene-base.png"]) {
   cpSync(resolve(root, "src/plugin/client/assets", name), resolve(assets, name));
 }
+mkdirSync(companion, { recursive: true });
+writeFileSync(resolve(companion, "index.html"), `<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'self'; style-src 'unsafe-inline'; img-src 'self' file: data:; connect-src http://127.0.0.1:* http://localhost:*;">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>DSH 桌面老虎机</title>
+  <style>html,body,#root{width:100%;height:100%;margin:0;overflow:hidden;background:transparent}</style>
+</head>
+<body><div id="root"></div><script src="../lib/companion.js"></script></body>
+</html>
+`);
 
 assertFiles(lib, [
   "client.js",
   "client.js.map",
+  "companion.js",
+  "companion.js.map",
   "index.js",
   "index.js.map",
   "types/client/index.d.ts",
@@ -108,6 +127,8 @@ await npmPack(`file:${root}`, {
 assertFiles(lib, [
   "client.js",
   "client.js.map",
+  "companion.js",
+  "companion.js.map",
   "index.js",
   "index.js.map",
   "types/client/index.d.ts",

@@ -6,7 +6,8 @@ import { applyDailyOpen, applyDshEvent } from "../economy/work-rewards";
 import { recoverInterruptedSpin, transitionMachine } from "../game/machine";
 import type { OutcomeKind } from "../game/outcomes";
 import { stableVerificationRoll, type RandomSource } from "../game/rng";
-import { buyCollectible, setCollectibleDisplayed } from "../inventory/inventory";
+import { buyCollectible, setCollectibleDisplayed, setCollectiblePlacement } from "../inventory/inventory";
+import type { TablePositionId } from "../domain/types";
 import {
   RevisionConflictError,
   STATE_KEY,
@@ -32,11 +33,13 @@ export interface GameController {
   lastEvent: DshEvent | null;
   insertCoin(): void;
   pullLever(): void;
+  play(): void;
   advanceAnimation(
     event: "SPIN_ANIMATION_DONE" | "HIGHLIGHT_DONE" | "PAYOUT_DONE" | "CLEAR_SETTLED_SPIN",
   ): void;
   buy(id: string): void;
   setDisplayed(id: string, displayed: boolean): void;
+  setPlacement(id: string, positionId: TablePositionId | null): void;
   setSettings(patch: Partial<GameState["settings"]>): void;
   refreshForCurrentDate(): void;
   resetPrototype(): void;
@@ -159,6 +162,22 @@ export function useGameController(deps: GameControllerDependencies): GameControl
 
   const insertCoin = useCallback(() => applyMachineEvent({ type: "INSERT_COIN" }), [applyMachineEvent]);
   const pullLever = useCallback(() => applyMachineEvent({ type: "PULL_LEVER" }), [applyMachineEvent]);
+  const play = useCallback((): void => {
+    commit((current) => {
+      const machineDependencies = {
+        rng: depsRef.current.rng,
+        now: () => depsRef.current.clock.now(),
+        createId: () => depsRef.current.createId(),
+        consumeOutcomeOverride: depsRef.current.consumeOutcomeOverride,
+      };
+      const paid = current.activeSpin === null
+        ? transitionMachine(current, { type: "INSERT_COIN" }, machineDependencies)
+        : current;
+      return paid.activeSpin?.stage === "coin-inserted"
+        ? transitionMachine(paid, { type: "PULL_LEVER" }, machineDependencies)
+        : paid;
+    });
+  }, [commit]);
   const advanceAnimation = useCallback((
     event: "SPIN_ANIMATION_DONE" | "HIGHLIGHT_DONE" | "PAYOUT_DONE" | "CLEAR_SETTLED_SPIN",
   ) => applyMachineEvent({ type: event }), [applyMachineEvent]);
@@ -170,6 +189,9 @@ export function useGameController(deps: GameControllerDependencies): GameControl
   }, [commit]);
   const setDisplayed = useCallback((id: string, displayed: boolean): void => {
     commit((current) => setCollectibleDisplayed(current, id, displayed));
+  }, [commit]);
+  const setPlacement = useCallback((id: string, positionId: TablePositionId | null): void => {
+    commit((current) => setCollectiblePlacement(current, id, positionId));
   }, [commit]);
   const setSettings = useCallback((patch: Partial<GameState["settings"]>): void => {
     commit((current) => {
@@ -198,9 +220,11 @@ export function useGameController(deps: GameControllerDependencies): GameControl
     lastEvent,
     insertCoin,
     pullLever,
+    play,
     advanceAnimation,
     buy,
     setDisplayed,
+    setPlacement,
     setSettings,
     refreshForCurrentDate,
     resetPrototype,

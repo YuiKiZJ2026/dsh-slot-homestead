@@ -10,7 +10,7 @@ export interface GameDomain {
 
 export function createInitialHostState(): HostState {
   return {
-    schemaVersion: 2,
+    schemaVersion: 3,
     revision: 0,
     wallet: 0,
     lastGrantedLocalDate: null,
@@ -20,7 +20,8 @@ export function createInitialHostState(): HostState {
     pityCount: 0,
     inventory: [],
     displaySlots: [],
-    settings: { muted: true, reducedMotion: false, scale: 1 },
+    tablePlacements: [],
+    settings: { muted: true, reducedMotion: false, scale: 1, companionScale: 1 },
     pendingSpin: null,
     recentCommands: {},
   };

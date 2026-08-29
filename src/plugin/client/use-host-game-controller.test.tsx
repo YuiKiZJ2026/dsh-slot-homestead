@@ -157,6 +157,38 @@ describe("useHostGameController", () => {
     expect(result.current.gameState.activeSpin).toBeNull();
   });
 
+  it("uses one right-lever action to insert a coin and immediately start the same Host spin", async () => {
+    const initial = snapshot({ pendingSpin: null });
+    const paid = snapshot({
+      revision: 8,
+      wallet: 4,
+      pendingSpin: spin("paid"),
+    });
+    const spinning = snapshot({
+      revision: 9,
+      wallet: 4,
+      pendingSpin: spin("spinning"),
+    });
+    const api = new RecordingApi(initial, (request) => request.type === "insertCoin"
+      ? { status: 200, snapshot: paid }
+      : { status: 200, snapshot: spinning });
+    const hookOptions = options(api);
+    const { result } = renderHook(() => useHostGameController(hookOptions));
+    await waitFor(() => expect(result.current.snapshot?.revision).toBe(7));
+
+    await act(async () => { await result.current.play(); });
+
+    expect(api.requests.map((request) => ({
+      type: request.type,
+      expectedRevision: request.expectedRevision,
+      ...(request.type === "pullLever" ? { spinId: request.spinId } : {}),
+    }))).toEqual([
+      { type: "insertCoin", expectedRevision: 7 },
+      { type: "pullLever", expectedRevision: 8, spinId: "spin-1" },
+    ]);
+    expect(result.current.gameState.activeSpin).toMatchObject({ id: "spin-1", stage: "spinning" });
+  });
+
   it("reconciles a failed settlement transport to Host spinning on refresh and can settle again", async () => {
     const hostSpinning = snapshot({ pendingSpin: spin("spinning") });
     const hostSettled = snapshot({

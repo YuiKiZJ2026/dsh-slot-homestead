@@ -35,6 +35,10 @@ describe("release source archive", () => {
 
     const included = validateTrackedPaths([
       ...REQUIRED,
+      ".gitattributes",
+      "CHANGELOG.md",
+      "CONTRIBUTING.md",
+      "SECURITY.md",
       ".github/workflows/ci.yml",
       "docs/guide.md",
       "public/assets/scene-base.png",
@@ -53,6 +57,9 @@ describe("release source archive", () => {
 
     expect(included).toContain("src/plugin/client/assets/scene-base.png");
     expect(included).toContain("public/assets/scene-base.png");
+    expect(included).toContain("CHANGELOG.md");
+    expect(included).toContain("CONTRIBUTING.md");
+    expect(included).toContain("SECURITY.md");
     expect(included).not.toContain("assets/generated.png");
     expect(included).not.toContain(".superpowers/internal.md");
     expect(included).not.toContain("dsh-desktop-slot-widget-0.2.0.tgz");

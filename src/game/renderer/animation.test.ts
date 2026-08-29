@@ -9,6 +9,7 @@ const base: AnimationInput = {
   payoutCoinAmount: 5,
   reels: ["coin", "leaf", "moon"],
   displayed: [],
+  placements: [],
   payoutCollectibleId: null,
   starryTheme: false,
   agentStatus: "idle",
@@ -78,7 +79,7 @@ describe("animationFrameFor", () => {
     expect(payout.coins.length).toBeLessThanOrEqual(10);
     expect(payout.coins.every((coin) => coin.y < coin.startY)).toBe(true);
     expect(payout.sparkles.length).toBeLessThanOrEqual(6);
-    expect(payout.payoutPosition).toEqual({ x: 129, y: 179 });
+    expect(payout.payoutPosition).toEqual({ x: 213, y: 155 });
   });
 
   it.each([
@@ -98,7 +99,7 @@ describe("animationFrameFor", () => {
     expect(frame.coins.length > 0).toBe(expected);
   });
 
-  it("moves a payout collectible from the payout slot to its catalog display center", () => {
+  it("keeps a payout collectible at the prize opening before it moves into storage", () => {
     expect(animationFrameFor({
       ...base,
       stage: "payout",
@@ -110,7 +111,7 @@ describe("animationFrameFor", () => {
       stage: "payout",
       elapsedMs: 1000,
       payoutCollectibleId: "plant",
-    }).payoutPosition).toEqual({ x: 44, y: 214 });
+    }).payoutPosition).toEqual({ x: 213, y: 166 });
   });
 
   it("uses direct final states with no travel under reduced motion", () => {
@@ -127,7 +128,7 @@ describe("animationFrameFor", () => {
     expect(reduced.reelOffsets).toEqual([0, 0, 0]);
     expect(reduced.coins).toEqual([]);
     expect(reduced.sparkles).toEqual([]);
-    expect(reduced.payoutPosition).toEqual({ x: 44, y: 214 });
+    expect(reduced.payoutPosition).toEqual({ x: 213, y: 166 });
   });
 
   it("samples idle plant sway and moon-lamp glow without mutating displayed items", () => {

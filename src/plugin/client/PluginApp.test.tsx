@@ -4,7 +4,8 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import type { SceneAssets, SceneAssetUrls } from "../../game/renderer/assets";
 import type { CommandRequest, CommandResult, PublicSnapshot } from "../shared/contracts";
 import type { GameApi } from "./api";
-import { PluginApp } from "./PluginApp";
+import { normalizeCompanionScale, PluginApp } from "./PluginApp";
+import { PLUGIN_STYLE } from "./style";
 
 const ASSET_URLS: SceneAssetUrls = {
   scene: "data:image/png;base64,scene",
@@ -25,6 +26,41 @@ afterEach(() => {
 });
 
 describe("PluginApp", () => {
+  it("snaps Windows frame rounding back to the default scale", () => {
+    expect(normalizeCompanionScale(1.006)).toBe(1);
+    expect(normalizeCompanionScale(1.2545)).toBe(1.25);
+  });
+
+  it("uses the slot scene as the native drag surface and renders a text-free collapsed tab", async () => {
+    vi.spyOn(window, "innerWidth", "get").mockReturnValue(336);
+    vi.spyOn(window, "innerHeight", "get").mockReturnValue(330);
+    const { container } = render(
+      <PluginApp
+        api={new StaticApi(snapshot())}
+        sessionId="official-session-id"
+        assetUrls={ASSET_URLS}
+        loadAssets={neverLoads}
+        displayMode="companion"
+      />,
+    );
+
+    expect(screen.queryByText("拖动老虎机 · 靠边自动收起")).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "展开老虎机" })).toHaveTextContent("◆");
+    expect(PLUGIN_STYLE).toContain(".desktop--companion .game-canvas-wrap { -webkit-app-region: drag;");
+    expect(container.querySelectorAll(".table-drop-hit-zone")).toHaveLength(3);
+    expect(PLUGIN_STYLE).toContain(".desktop--companion .table-drop-hit-zone { -webkit-app-region: no-drag;");
+    expect(PLUGIN_STYLE).toContain("@media (max-width: 60px), (max-height: 60px)");
+    expect(PLUGIN_STYLE).toContain("> :not(.edge-reveal-tab) { display: none !important;");
+    expect(container.querySelectorAll(".companion-resize-grip")).toHaveLength(4);
+    const surface = container.querySelector<HTMLElement>(".companion-scale-surface");
+    expect(surface).not.toBeNull();
+    expect(surface).toContainElement(screen.getByRole("region", { name: "Host 游戏状态" }));
+    expect(surface).toContainElement(container.querySelector("canvas"));
+    expect(container.querySelector<HTMLElement>(".desktop--companion")?.style.getPropertyValue("--companion-scale"))
+      .toBe("1");
+    expect(PLUGIN_STYLE).toContain("transform: scale(var(--companion-scale))");
+  });
+
   it("renders wallet and Token energy from one Host snapshot status region", async () => {
     render(
       <PluginApp
@@ -37,7 +73,7 @@ describe("PluginApp", () => {
 
     const status = await screen.findByRole("region", { name: "Host 游戏状态" });
     expect(status).toHaveTextContent("5");
-    expect(status).toHaveTextContent("Token 能量：1,850 / 3,000");
+    expect(status).toHaveTextContent("实际 Token：1,850 / 10,000");
     expect(status).toHaveTextContent("今日 Token 奖励：3 / 8");
     expect(status).toHaveTextContent("未连接任务奖励来源");
   });
@@ -54,16 +90,16 @@ describe("PluginApp", () => {
         loadAssets={loadsReady}
       />,
     );
-    const coin = await screen.findByRole("button", { name: "投入 1 枚硬币" });
-    await user.click(screen.getByRole("button", { name: "打开收藏柜" }));
-    const display = screen.getByRole("button", { name: "展示 小盆栽" });
-    await waitFor(() => expect(coin).toBeEnabled());
-    expect(display).toBeEnabled();
+    const lever = await screen.findByRole("button", { name: "拉下右侧摇杆" });
+    await user.click(screen.getByRole("button", { name: "打开收藏盒" }));
+    const display = screen.getByRole("gridcell", { name: "小盆栽，仓库中，可拖到桌面" });
+    await waitFor(() => expect(lever).toBeEnabled());
+    expect(display).toHaveAttribute("draggable", "true");
 
-    await user.click(coin);
+    await user.click(lever);
 
-    await waitFor(() => expect(coin).toBeDisabled());
-    expect(display).toBeDisabled();
+    await waitFor(() => expect(lever).toBeDisabled());
+    expect(display).toHaveAttribute("draggable", "false");
     expect(api.requests[0]).toMatchObject({
       type: "insertCoin",
       sessionId: "official-session-id",

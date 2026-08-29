@@ -43,7 +43,7 @@ describe("published DSH bundle contract", () => {
       "react/client",
       "react-dom",
       "@deepseek-ai/dsh-client-runtime/client",
-      "@deepseek-ai/dsh-client-ui-conversation/client",
+      "@deepseek-ai/dsh-client-ui-layout/client",
       "@deepseek-ai/dsh-storage-domain",
     ]) {
       expect(isClientExternal(rejected), rejected).toBe(false);
@@ -51,6 +51,7 @@ describe("published DSH bundle contract", () => {
 
     expect(isHostExternal("@deepseek-ai/cordis")).toBe(true);
     expect(isHostExternal("@deepseek-ai/dsh-storage-domain/client")).toBe(true);
+    expect(isHostExternal("electron")).toBe(true);
     expect(isHostExternal("react")).toBe(false);
   });
 
@@ -59,10 +60,10 @@ describe("published DSH bundle contract", () => {
 
     expect(manifest).toMatchObject({
       name: "dsh-desktop-slot-widget",
-      version: "0.2.0",
+      version: "0.6.0",
       type: "module",
       main: "./lib/index.js",
-      files: ["lib", "assets", "cordis.patch.yml", "README.md", "LICENSE"],
+      files: ["lib", "assets", "companion", "cordis.patch.yml", "README.md", "LICENSE"],
       exports: {
         ".": {
           types: "./lib/types/index.d.ts",
@@ -80,10 +81,18 @@ describe("published DSH bundle contract", () => {
       author: "DSH Desktop Slot contributors",
       description: "A pixel-art slot companion plugin for DSH Desktop.",
       keywords: ["deepseek-harness", "dsh", "dsh-desktop", "plugin", "slot-widget"],
+      repository: {
+        type: "git",
+        url: "git+https://github.com/YuiKiZJ2026/dsh-desktop-slot-widget.git",
+      },
+      homepage: "https://github.com/YuiKiZJ2026/dsh-desktop-slot-widget#readme",
+      bugs: {
+        url: "https://github.com/YuiKiZJ2026/dsh-desktop-slot-widget/issues",
+      },
       peerDependencies: {
         "@deepseek-ai/cordis": "^4.0.1",
         "@deepseek-ai/dsh-client-runtime": "0.1.1-rc.2",
-        "@deepseek-ai/dsh-client-ui-conversation": "0.1.1-rc.2",
+        "@deepseek-ai/dsh-client-ui-layout": "0.1.1-rc.2",
         "@deepseek-ai/dsh-host-webserver": "0.1.1-rc.2",
         "@deepseek-ai/dsh-session": "0.1.1-rc.2",
         "@deepseek-ai/dsh-storage-domain": "0.1.1-rc.2",
@@ -94,11 +103,11 @@ describe("published DSH bundle contract", () => {
         bundle: { patch: "./cordis.patch.yml" },
         client: {
           platform: "web",
-          inject: ["@deepseek-ai/dsh-client-ui-conversation"],
+          inject: ["@deepseek-ai/dsh-client-ui-layout"],
+          immediately: true,
         },
       },
     });
-    expect(manifest).not.toHaveProperty("repository");
   });
 
   it("ships the ISC license and the minimal Cordis insertion", () => {
@@ -142,11 +151,16 @@ describe("published DSH bundle contract", () => {
       return {};
     });
     expect(requireIds.sort()).toEqual(["react", "react/jsx-runtime"]);
-    expect(Object.keys(exports).sort()).toEqual(["SlotWidgetView", "apply", "inject"]);
+    expect(Object.keys(exports).sort()).toEqual([
+      "GLOBAL_GAME_SCOPE_ID",
+      "SlotWidgetOverlay",
+      "apply",
+      "inject",
+    ]);
   });
 
   it("keeps production bundles free of preview-only authorities", () => {
-    const production = `${read("lib/index.js")}\n${read("lib/client.js")}`;
+    const production = `${read("lib/index.js")}\n${read("lib/client.js")}\n${read("lib/companion.js")}`;
     for (const forbidden of [
       "MockDshAdapter",
       "打开演示控制台",
@@ -195,7 +209,8 @@ describe("published DSH bundle contract", () => {
   });
 
   it("packs only the audited runtime and documentation allowlist", () => {
-    const archive = resolve(root, "dsh-desktop-slot-widget-0.2.0.tgz");
+    const manifest = JSON.parse(read("package.json"));
+    const archive = resolve(root, `${manifest.name}-${manifest.version}.tgz`);
     expect(existsSync(archive)).toBe(true);
     const output = execFileSync("tar", ["-tzf", archive], {
       cwd: root,
@@ -209,9 +224,12 @@ describe("published DSH bundle contract", () => {
       "assets/collectibles.png",
       "assets/reel-symbols-runtime.png",
       "assets/scene-base.png",
+      "companion/index.html",
       "cordis.patch.yml",
       "lib/client.js",
       "lib/client.js.map",
+      "lib/companion.js",
+      "lib/companion.js.map",
       "lib/index.js",
       "lib/index.js.map",
       "lib/types/client/index.d.ts",

@@ -21,6 +21,7 @@ export function createDshInvocation(
   entry?: string,
   nodeExecutable?: string,
 ): { readonly command: string; readonly prefixArgs: readonly string[] };
+export function defaultPluginArchive(): string;
 export function assertClaimTransition(initial: SmokeSnapshot, claimed: SmokeSnapshot): void;
 export function assertPersistedSnapshot(
   expected: SmokeSnapshot,

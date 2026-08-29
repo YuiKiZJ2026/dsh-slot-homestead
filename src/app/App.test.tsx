@@ -47,17 +47,17 @@ describe("App", () => {
     expect(screen.getByTestId("wallet-count")).toHaveTextContent("0");
     expect(screen.getByText(/钱包/)).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "打开演示控制台" })).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "打开收藏柜" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "打开收藏盒" })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "打开商店" })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "打开设置" })).toBeInTheDocument();
     expect(screen.getByRole("img", { name: "DSH 像素老虎机场景" })).toHaveTextContent(
       "DSH 像素老虎机场景",
     );
 
-    await userEvent.click(screen.getByRole("button", { name: "打开收藏柜" }));
-    await userEvent.click(screen.getByRole("button", { name: "关闭收藏柜" }));
-    expect(screen.getByRole("button", { name: "打开收藏柜" })).toBeInTheDocument();
-    expect(screen.queryByRole("dialog", { name: "收藏柜" })).not.toBeInTheDocument();
+    await userEvent.click(screen.getByRole("button", { name: "打开收藏盒" }));
+    await userEvent.click(screen.getByRole("button", { name: "关闭收藏盒" }));
+    expect(screen.getByRole("button", { name: "打开收藏盒" })).toBeInTheDocument();
+    expect(screen.queryByRole("dialog", { name: "收藏盒" })).not.toBeInTheDocument();
   });
 
   it("routes the development result selector to the next paid spin", async () => {
@@ -76,9 +76,9 @@ describe("App", () => {
     await waitFor(() => expect(screen.getByTestId("wallet-count")).toHaveTextContent("3"));
     await userEvent.click(screen.getByRole("button", { name: "打开演示控制台" }));
     await userEvent.selectOptions(screen.getByLabelText("预设下次结果"), "common");
-    const coin = screen.getByRole("button", { name: "投入 1 枚硬币" });
-    await waitFor(() => expect(coin).toBeEnabled());
-    await userEvent.click(coin);
+    const lever = screen.getByRole("button", { name: "拉下右侧摇杆" });
+    await waitFor(() => expect(lever).toBeEnabled());
+    await userEvent.click(lever);
 
     const rawState = localStorage.getItem(STATE_KEY);
     expect(rawState).not.toBeNull();
@@ -125,7 +125,7 @@ describe("App", () => {
 
     const { unmount, rerender } = render(<StrictMode><App /></StrictMode>);
     await waitFor(() => {
-      expect(screen.getByRole("button", { name: "投入 1 枚硬币" })).toBeEnabled();
+      expect(screen.getByRole("button", { name: "拉下右侧摇杆" })).toBeEnabled();
     });
 
     rerender(<StrictMode><App /></StrictMode>);

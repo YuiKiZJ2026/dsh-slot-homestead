@@ -1,5 +1,11 @@
 import { afterEach, describe, expect, it } from "vitest";
-import { ASSET_FRAMES, DISPLAY_SLOTS, loadSceneAssets } from "./assets";
+import {
+  ASSET_FRAMES,
+  COLLECTIBLE_VISIBLE_BOUNDS,
+  collectiblePlacementRect,
+  DISPLAY_SLOTS,
+  loadSceneAssets,
+} from "./assets";
 
 const originalImage = globalThis.Image;
 
@@ -36,11 +42,47 @@ describe("asset manifest", () => {
     });
   });
 
+  it.each(["plant", "crystal", "comet-badge"])(
+    "centers the visible pixels of %s and rests their visible bottom on the pedestal",
+    (itemId) => {
+      const bounds = COLLECTIBLE_VISIBLE_BOUNDS[itemId]!;
+      const rect = collectiblePlacementRect(itemId, { x: 187, y: 224, size: 54 });
+      const visibleCenter = rect.x + ((bounds.left + bounds.right) / 2 / 96) * rect.size;
+      const visibleBottom = rect.y + (bounds.bottom / 96) * rect.size;
+      expect(visibleCenter).toBeCloseTo(187, 5);
+      expect(visibleBottom).toBeCloseTo(224, 5);
+    },
+  );
+
+  it("normalizes unusually short art instead of rendering it as a tiny unknown blob", () => {
+    expect(collectiblePlacementRect("crystal", { x: 187, y: 224, size: 54 }).size)
+      .toBeGreaterThan(collectiblePlacementRect("plant", { x: 187, y: 224, size: 54 }).size);
+  });
+
+  it.each(["plant", "desk-clock", "book-stand"])(
+    "renders the visible height of %s at the full nominal pedestal size",
+    (itemId) => {
+      const bounds = COLLECTIBLE_VISIBLE_BOUNDS[itemId]!;
+      const rect = collectiblePlacementRect(itemId, { x: 187, y: 224, size: 54 });
+      const visibleHeight = (bounds.bottom - bounds.top) / 96 * rect.size;
+      expect(visibleHeight).toBeCloseTo(54, 5);
+    },
+  );
+
   it("exports all twelve accepted display centers in catalog order", () => {
     expect(DISPLAY_SLOTS).toEqual([
-      { x: 44, y: 214 }, { x: 92, y: 223 }, { x: 144, y: 218 }, { x: 205, y: 224 },
-      { x: 42, y: 164 }, { x: 98, y: 174 }, { x: 274, y: 188 }, { x: 330, y: 192 },
-      { x: 44, y: 112 }, { x: 100, y: 118 }, { x: 284, y: 125 }, { x: 336, y: 132 },
+      { id: "left-rear-round", label: "左后圆台", x: 62, y: 72, size: 46 },
+      { id: "left-rear-small", label: "左后小台", x: 123, y: 78, size: 40 },
+      { id: "right-rear-small", label: "右后小台", x: 314, y: 94, size: 40 },
+      { id: "right-rear-round", label: "右中圆台", x: 320, y: 143, size: 46 },
+      { id: "left-middle-round", label: "左中圆台", x: 62, y: 140, size: 50 },
+      { id: "left-middle-small", label: "左中小台", x: 119, y: 144, size: 44 },
+      { id: "right-middle-small", label: "右前小台", x: 267, y: 197, size: 46 },
+      { id: "right-middle-round", label: "右前圆台", x: 329, y: 196, size: 54 },
+      { id: "left-front-round", label: "左前圆台", x: 53, y: 196, size: 54 },
+      { id: "left-front-small", label: "左前小台", x: 111, y: 196, size: 46 },
+      { id: "center-front", label: "中央台左位", x: 170, y: 197, size: 42 },
+      { id: "right-front-round", label: "中央台右位", x: 204, y: 197, size: 42 },
     ]);
   });
 });

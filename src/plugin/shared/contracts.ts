@@ -1,9 +1,14 @@
 import { z } from "zod";
+import { TABLE_POSITION_IDS } from "../../domain/table-positions";
 
 const nonNegativeSafeInteger = z.number().int().nonnegative().safe();
 const identifier = z.string().min(1).max(256);
 const localDate = z.iso.date();
 const usageSequenceKey = z.string().regex(/^(?:0|[1-9]\d*)$/);
+const tablePlacementSchema = z.object({
+  itemId: identifier,
+  positionId: z.enum(TABLE_POSITION_IDS),
+}).strict();
 
 export const reportedTokenUsageSchema = z
   .object({
@@ -17,9 +22,16 @@ export const reportedTokenUsageSchema = z
 
 export type ReportedTokenUsage = z.infer<typeof reportedTokenUsageSchema>;
 
-export const tokenEnergyStateSchema = z
+const legacyTokenEnergyStateSchema = z
   .object({
     progress: nonNegativeSafeInteger.max(2_999),
+    dailyCoins: z.record(z.string(), nonNegativeSafeInteger),
+  })
+  .strict();
+
+export const tokenEnergyStateSchema = z
+  .object({
+    progress: nonNegativeSafeInteger.max(9_999),
     dailyCoins: z.record(z.string(), nonNegativeSafeInteger),
   })
   .strict();
@@ -32,6 +44,7 @@ const gameSettingsSchema = z
     muted: z.boolean(),
     reducedMotion: z.boolean(),
     scale: z.union([z.literal(1), z.literal(2)]),
+    companionScale: z.number().min(0.75).max(1.6).optional(),
   })
   .strict();
 const reelSymbolSchema = z.enum(["coin", "leaf", "crystal", "moon", "robot"]);
@@ -75,6 +88,7 @@ const publicSnapshotFields = {
   pityCount: nonNegativeSafeInteger,
   inventory: z.array(identifier),
   displaySlots: z.array(identifier).max(12),
+  tablePlacements: z.array(tablePlacementSchema).max(12).optional(),
   settings: gameSettingsSchema,
   pendingSpin: pendingSpinSchema.nullable(),
   agentStatus: z.enum(["idle", "working"]),
@@ -101,11 +115,12 @@ const hostStateV1Schema = z
     wallet: nonNegativeSafeInteger,
     lastGrantedLocalDate: localDate.nullable(),
     daily: z.record(localDate, dailyLedgerSchema),
-    tokenEnergy: tokenEnergyStateSchema,
+    tokenEnergy: legacyTokenEnergyStateSchema,
     tokenUsageReceipts: z.record(identifier, z.literal(true)),
     pityCount: nonNegativeSafeInteger,
     inventory: z.array(identifier),
     displaySlots: z.array(identifier).max(12),
+    tablePlacements: z.array(tablePlacementSchema).max(12).optional(),
     settings: gameSettingsSchema,
     pendingSpin: pendingSpinSchema.nullable(),
     recentCommands: z.record(z.uuid(), commandReceiptSchema),
@@ -119,7 +134,7 @@ export const hostStateV2Schema = z
     wallet: nonNegativeSafeInteger,
     lastGrantedLocalDate: localDate.nullable(),
     daily: z.record(localDate, dailyLedgerSchema),
-    tokenEnergy: tokenEnergyStateSchema,
+    tokenEnergy: legacyTokenEnergyStateSchema,
     tokenUsageWatermarks: z.record(identifier, nonNegativeSafeInteger),
     // Present only for sessions migrated from v1. A cold/disposed session can
     // retain its exact group across bootstrap until its first authoritative
@@ -130,29 +145,75 @@ export const hostStateV2Schema = z
     pityCount: nonNegativeSafeInteger,
     inventory: z.array(identifier),
     displaySlots: z.array(identifier).max(12),
+    tablePlacements: z.array(tablePlacementSchema).max(12).optional(),
     settings: gameSettingsSchema,
     pendingSpin: pendingSpinSchema.nullable(),
     recentCommands: z.record(z.uuid(), commandReceiptSchema),
   })
   .strict();
 
-export type HostState = z.infer<typeof hostStateV2Schema>;
+export const hostStateV3Schema = z
+  .object({
+    schemaVersion: z.literal(3),
+    revision: nonNegativeSafeInteger,
+    wallet: nonNegativeSafeInteger,
+    lastGrantedLocalDate: localDate.nullable(),
+    daily: z.record(localDate, dailyLedgerSchema),
+    tokenEnergy: tokenEnergyStateSchema,
+    tokenUsageWatermarks: z.record(identifier, nonNegativeSafeInteger),
+    // Temporary replay marker used only while upgrading weighted v2 progress
+    // to exact provider-reported tokens. Replayed history reconstructs the
+    // remainder without awarding the already-accounted historical coins.
+    legacyWeightedUsageWatermarks: z
+      .record(identifier, nonNegativeSafeInteger)
+      .optional(),
+    legacyTokenUsageReceipts: z
+      .record(identifier, z.record(usageSequenceKey, z.literal(true)))
+      .optional(),
+    pityCount: nonNegativeSafeInteger,
+    inventory: z.array(identifier),
+    displaySlots: z.array(identifier).max(12),
+    tablePlacements: z.array(tablePlacementSchema).max(12).optional(),
+    settings: gameSettingsSchema,
+    pendingSpin: pendingSpinSchema.nullable(),
+    recentCommands: z.record(z.uuid(), commandReceiptSchema),
+  })
+  .strict();
+
+export type HostState = z.infer<typeof hostStateV3Schema>;
 
 export const hostStateSchema = z
-  .union([hostStateV2Schema, hostStateV1Schema])
+  .union([hostStateV3Schema, hostStateV2Schema, hostStateV1Schema])
   .transform((state): HostState => {
-    if (state.schemaVersion === 2) return state;
-    const { tokenUsageReceipts, ...legacy } = state;
-    const replay = migrateUsageReplay(tokenUsageReceipts);
+    if (state.schemaVersion === 3) return state;
+    return migrateV2ToV3(state.schemaVersion === 2 ? state : migrateV1ToV2(state));
+  });
+
+function migrateV1ToV2(state: z.infer<typeof hostStateV1Schema>): z.infer<typeof hostStateV2Schema> {
+  const { tokenUsageReceipts, ...legacy } = state;
+  const replay = migrateUsageReplay(tokenUsageReceipts);
+  return {
+    ...legacy,
+    schemaVersion: 2,
+    tokenUsageWatermarks: replay.watermarks,
+    ...(Object.keys(replay.receipts).length === 0
+      ? {}
+      : { legacyTokenUsageReceipts: replay.receipts }),
+  };
+}
+
+function migrateV2ToV3(state: z.infer<typeof hostStateV2Schema>): HostState {
+    const { tokenUsageWatermarks, tokenEnergy, ...legacy } = state;
     return {
       ...legacy,
-      schemaVersion: 2,
-      tokenUsageWatermarks: replay.watermarks,
-      ...(Object.keys(replay.receipts).length === 0
+      schemaVersion: 3,
+      tokenEnergy: { progress: 0, dailyCoins: tokenEnergy.dailyCoins },
+      tokenUsageWatermarks: {},
+      ...(Object.keys(tokenUsageWatermarks).length === 0
         ? {}
-        : { legacyTokenUsageReceipts: replay.receipts }),
+        : { legacyWeightedUsageWatermarks: tokenUsageWatermarks }),
     };
-  });
+}
 
 function migrateUsageReplay(
   receipts: Record<string, true>,
@@ -208,6 +269,7 @@ const settingsPatchSchema = z
     muted: z.boolean().optional(),
     reducedMotion: z.boolean().optional(),
     scale: z.union([z.literal(1), z.literal(2)]).optional(),
+    companionScale: z.number().min(0.75).max(1.6).optional(),
   })
   .strict()
   .refine((patch) => Object.keys(patch).length > 0, "Settings patch cannot be empty");
@@ -227,6 +289,14 @@ export const commandRequestSchema = z.discriminatedUnion("type", [
     })
     .strict(),
   z
+    .object({
+      ...commandBase,
+      type: z.literal("setPlacement"),
+      itemId: identifier,
+      positionId: z.enum(TABLE_POSITION_IDS).nullable(),
+    })
+    .strict(),
+  z
     .object({ ...commandBase, type: z.literal("updateSettings"), patch: settingsPatchSchema })
     .strict(),
 ]);
@@ -242,7 +312,8 @@ export type CommandErrorCode =
   | "unknown-item"
   | "already-owned"
   | "locked-spin-reward"
-  | "item-not-owned";
+  | "item-not-owned"
+  | "position-occupied";
 
 export type CommandResult =
   | { status: 200; snapshot: PublicSnapshot; errorCode?: never }

@@ -1,4 +1,5 @@
 import type { ReelSymbol } from "../../domain/types";
+import { TABLE_POSITIONS, type TablePosition } from "../../domain/table-positions";
 
 export interface AtlasFrame {
   x: number;
@@ -46,11 +47,59 @@ export const ASSET_FRAMES: {
   },
 };
 
-export const DISPLAY_SLOTS = [
-  { x: 44, y: 214 }, { x: 92, y: 223 }, { x: 144, y: 218 }, { x: 205, y: 224 },
-  { x: 42, y: 164 }, { x: 98, y: 174 }, { x: 274, y: 188 }, { x: 330, y: 192 },
-  { x: 44, y: 112 }, { x: 100, y: 118 }, { x: 284, y: 125 }, { x: 336, y: 132 },
-] as const;
+export interface VisibleBounds {
+  readonly left: number;
+  readonly top: number;
+  readonly right: number;
+  readonly bottom: number;
+}
+
+export const COLLECTIBLE_VISIBLE_BOUNDS: Readonly<Record<string, VisibleBounds>> = {
+  plant: { left: 17, top: 6, right: 78, bottom: 90 },
+  "book-stand": { left: 12, top: 6, right: 84, bottom: 90 },
+  "desk-clock": { left: 13, top: 6, right: 83, bottom: 90 },
+  "warm-mug": { left: 19, top: 6, right: 76, bottom: 90 },
+  toolbox: { left: 8, top: 6, right: 87, bottom: 90 },
+  "paper-lantern": { left: 23, top: 6, right: 72, bottom: 90 },
+  crystal: { left: 29, top: 6, right: 66, bottom: 73 },
+  "moon-lamp": { left: 21, top: 6, right: 75, bottom: 90 },
+  "mini-robot": { left: 24, top: 6, right: 72, bottom: 90 },
+  "star-projector": { left: 11, top: 6, right: 84, bottom: 90 },
+  "constellation-globe": { left: 18, top: 6, right: 78, bottom: 90 },
+  "comet-badge": { left: 7, top: 6, right: 89, bottom: 90 },
+};
+
+export interface CollectiblePlacementRect {
+  readonly x: number;
+  readonly y: number;
+  readonly size: number;
+}
+
+export function collectiblePlacementRect(
+  itemId: string,
+  position: Pick<TablePosition, "x" | "y" | "size">,
+): CollectiblePlacementRect {
+  const frame = ASSET_FRAMES.collectibles[itemId];
+  const visible = COLLECTIBLE_VISIBLE_BOUNDS[itemId];
+  if (frame === undefined || visible === undefined) {
+    return {
+      x: position.x - position.size / 2,
+      y: position.y - position.size,
+      size: position.size,
+    };
+  }
+  const visibleHeight = Math.max(1, visible.bottom - visible.top);
+  const size = position.size * frame.height / visibleHeight;
+  const visibleCenterX = (visible.left + visible.right) / 2 / frame.width;
+  const visibleBottomY = visible.bottom / frame.height;
+  return {
+    x: position.x - visibleCenterX * size,
+    y: position.y - visibleBottomY * size,
+    size,
+  };
+}
+
+export const DISPLAY_SLOTS = TABLE_POSITIONS;
 
 export const DEFAULT_SCENE_ASSET_URLS: SceneAssetUrls = {
   scene: "/assets/scene-base.png",

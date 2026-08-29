@@ -1,7 +1,12 @@
-import { COLLECTIBLES } from "../../domain/catalog";
+import { TABLE_POSITION_BY_ID } from "../../domain/table-positions";
 import type { AgentStatus, ReelSymbol } from "../../domain/types";
 import type { SceneViewModel } from "./animation";
-import { ASSET_FRAMES, DISPLAY_SLOTS, type AtlasFrame, type SceneAssets } from "./assets";
+import {
+  ASSET_FRAMES,
+  collectiblePlacementRect,
+  type AtlasFrame,
+  type SceneAssets,
+} from "./assets";
 
 const CANVAS_WIDTH = 384;
 const CANVAS_HEIGHT = 288;
@@ -113,11 +118,12 @@ export class SceneRenderer {
   }
 
   private drawDisplayedCollectibles(viewModel: SceneViewModel): void {
-    for (const id of viewModel.displayed) {
-      const catalogIndex = COLLECTIBLES.findIndex((item) => item.id === id);
+    for (const placement of viewModel.placements) {
+      const id = placement.itemId;
       const frame = ASSET_FRAMES.collectibles[id];
-      const slot = DISPLAY_SLOTS[catalogIndex];
-      if (catalogIndex < 0 || frame === undefined || slot === undefined) continue;
+      const slot = TABLE_POSITION_BY_ID[placement.positionId];
+      if (frame === undefined || slot === undefined) continue;
+      const placementRect = collectiblePlacementRect(id, slot);
       const offsetX = id === "plant" ? viewModel.effects?.plantOffsetX ?? 0 :
         id === "mini-robot" ? viewModel.effects?.robotRetreatX ?? 0 : 0;
       const offsetY = viewModel.effects?.collectibleBounce[id] ?? 0;
@@ -128,20 +134,20 @@ export class SceneRenderer {
         this.drawAtlasFrame(
           this.assets.collectibles,
           frame,
-          pixel(slot.x - 17 + offsetX),
-          pixel(slot.y - 33 + offsetY),
-          34,
-          34,
+          pixel(placementRect.x - 1 + offsetX),
+          pixel(placementRect.y - 1 + offsetY),
+          placementRect.size + 2,
+          placementRect.size + 2,
         );
         this.context.globalAlpha = previousAlpha;
       }
       this.drawAtlasFrame(
         this.assets.collectibles,
         frame,
-        pixel(slot.x - 16 + offsetX),
-        pixel(slot.y - 32 + offsetY),
-        32,
-        32,
+        pixel(placementRect.x + offsetX),
+        pixel(placementRect.y + offsetY),
+        placementRect.size,
+        placementRect.size,
       );
       this.context.globalAlpha = previousAlpha;
     }
@@ -155,10 +161,10 @@ export class SceneRenderer {
     this.drawAtlasFrame(
       this.assets.collectibles,
       frame,
-      pixel(position.x - 18),
-      pixel(position.y - 36),
-      36,
-      36,
+      pixel(position.x - 32),
+      pixel(position.y - 64),
+      64,
+      64,
     );
   }
 

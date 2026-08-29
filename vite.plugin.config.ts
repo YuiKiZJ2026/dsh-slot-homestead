@@ -4,9 +4,11 @@ import { isClientExternal, isHostExternal } from "./src/plugin/build-externals.t
 
 export default defineConfig(({ mode }) => {
   const client = mode === "plugin-client";
+  const companion = mode === "plugin-companion";
 
   return {
     publicDir: false,
+    define: companion ? { "process.env.NODE_ENV": JSON.stringify("production") } : undefined,
     build: {
       outDir: client ? ".plugin-build/client" : "lib",
       emptyOutDir: client,
@@ -18,16 +20,19 @@ export default defineConfig(({ mode }) => {
       lib: {
         entry: resolve(
           import.meta.dirname,
-          client ? "src/plugin/client/index.tsx" : "src/plugin/host/index.ts",
+          client
+            ? "src/plugin/client/index.tsx"
+            : companion ? "src/plugin/companion/main.tsx" : "src/plugin/host/index.ts",
         ),
-        formats: [client ? "cjs" : "es"],
-        fileName: () => client ? "client-body.cjs" : "index.js",
+        formats: [client ? "cjs" : companion ? "iife" : "es"],
+        name: companion ? "DshSlotCompanion" : undefined,
+        fileName: () => client ? "client-body.cjs" : companion ? "companion.js" : "index.js",
       },
       rollupOptions: {
-        external: client ? isClientExternal : isHostExternal,
+        external: companion ? [] : client ? isClientExternal : isHostExternal,
         output: {
           codeSplitting: false,
-          exports: "named",
+          exports: companion ? "none" : "named",
         },
       },
     },
