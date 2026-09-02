@@ -45,7 +45,7 @@ describe("PluginApp", () => {
       />,
     );
 
-    expect(screen.getByRole("application", { name: "DSH 桌面老虎机" }))
+    expect(screen.getByRole("application", { name: "老虎机庄园｜桌面像素生态养成" }))
       .toHaveAttribute("data-day-phase", "dusk");
     expect(screen.getByRole("status", { name: "当前系统光照：傍晚暖光" }))
       .toHaveTextContent("光照傍晚暖光");
@@ -267,7 +267,7 @@ describe("PluginApp", () => {
         />,
       );
 
-      expect(screen.getByRole("application", { name: "DSH 桌面老虎机" }))
+      expect(screen.getByRole("application", { name: "老虎机庄园｜桌面像素生态养成" }))
         .toHaveAttribute("data-day-phase", "night");
       expect(screen.queryByRole("status", { name: "当前系统光照：夜间熄灯" }))
         .not.toBeInTheDocument();
@@ -375,13 +375,13 @@ describe("PluginApp", () => {
     expect(container.querySelector<HTMLElement>(".desktop--companion")?.style.getPropertyValue("--widget-width"))
       .toBe("551.26px");
     expect(PLUGIN_STYLE).toContain("transform: scale(var(--companion-scale))");
-    const ecosystemWidget = screen.getByRole("region", { name: "老虎机与养成生态" });
+    const ecosystemWidget = screen.getByRole("region", { name: "老虎机庄园：老虎机与养成生态" });
     expect(ecosystemWidget).toHaveAttribute("data-composition", "single-workbench-v3");
     const commandBar = screen.getByRole("region", { name: "工作台控制" });
     expect(screen.getByRole("region", { name: "养成生态" })).toContainElement(commandBar);
     expect(commandBar.parentElement).toHaveAttribute("data-layout", "contextual-one-row");
     expect(ecosystemWidget.firstElementChild).toBe(screen.getByRole("region", { name: "养成生态" }));
-    expect(ecosystemWidget.lastElementChild).toHaveAttribute("aria-label", "老虎机微缩场景");
+    expect(ecosystemWidget.lastElementChild).toHaveAttribute("aria-label", "老虎机庄园微缩场景");
   });
 
   it("uses one 704x304 workbench coordinate space without seam compensation", () => {

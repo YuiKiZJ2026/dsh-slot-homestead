@@ -10,7 +10,9 @@ import {
 } from "../../scripts/dsh-real-smoke.mjs";
 import { describe, expect, it } from "vitest";
 
-const PLUGIN_ID = "dsh-desktop-slot-widget";
+const CORDIS_ROW_ID = "dsh-desktop-slot-widget";
+const PACKAGE_NAME = "dsh-slot-homestead";
+const PLUGIN_ID = PACKAGE_NAME;
 
 describe("real DSH smoke parsing and assertions", () => {
   it("parses only the announced loopback URL with a nonzero OS-assigned port", () => {
@@ -28,13 +30,17 @@ describe("real DSH smoke parsing and assertions", () => {
     const config = [
       "- id: another-plugin",
       "  name: another-plugin",
-      `- id: ${PLUGIN_ID}`,
-      `  name: ${PLUGIN_ID}`,
+      `- id: ${CORDIS_ROW_ID}`,
+      `  name: ${PACKAGE_NAME}`,
       "  config: {}",
     ].join("\n");
 
-    expect(configHasPluginRow(config, PLUGIN_ID)).toBe(true);
-    expect(configHasPluginRow(config.replace(`name: ${PLUGIN_ID}`, "name: impostor"), PLUGIN_ID))
+    expect(configHasPluginRow(config, CORDIS_ROW_ID, PACKAGE_NAME)).toBe(true);
+    expect(configHasPluginRow(
+      config.replace(`name: ${PACKAGE_NAME}`, "name: impostor"),
+      CORDIS_ROW_ID,
+      PACKAGE_NAME,
+    ))
       .toBe(false);
   });
 

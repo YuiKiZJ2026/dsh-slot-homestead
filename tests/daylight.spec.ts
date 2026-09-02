@@ -34,7 +34,7 @@ for (const expected of CASES) {
     await page.clock.setFixedTime(new Date(expected.time));
     await page.goto("/");
 
-    const application = page.getByRole("application", { name: "DSH 桌面老虎机" });
+    const application = page.getByRole("application", { name: "老虎机庄园｜桌面像素生态养成" });
     await expect(application).toHaveAttribute("data-day-phase", expected.phase);
     await expect(page.getByRole("status", { name: `当前系统光照：${expected.label}` }))
       .toBeVisible();
@@ -106,7 +106,7 @@ for (const previewPath of ["/", "/native-preview.html"] as const) {
     expect(skyBox!.width).toBeLessThan(420);
 
     const moon = sky.locator(".desktop__pixel-moon");
-    const workbench = page.getByRole("region", { name: "老虎机与养成生态" });
+    const workbench = page.getByRole("region", { name: "老虎机庄园：老虎机与养成生态" });
     const commandDeck = page.locator(".ecosystem-scene__command-deck");
     const moonBox = await moon.boundingBox();
     const workbenchBox = await workbench.boundingBox();

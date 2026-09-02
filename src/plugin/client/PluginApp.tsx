@@ -136,7 +136,7 @@ export function PluginApp({
       className={rootClass}
       style={rootStyle}
       role="application"
-      aria-label="DSH 桌面老虎机"
+      aria-label="老虎机庄园｜桌面像素生态养成"
       data-display-mode={displayMode}
       data-day-phase={dayPhase}
     >
@@ -168,7 +168,7 @@ export function PluginApp({
             className="ecosystem-widget"
             data-scale={scale}
             data-composition="single-workbench-v3"
-            aria-label="老虎机与养成生态"
+            aria-label="老虎机庄园：老虎机与养成生态"
           >
             <EcosystemScene
               state={controller.gameState}
@@ -194,7 +194,7 @@ export function PluginApp({
                 />
               )}
             />
-            <div className="slot-widget" aria-label="老虎机微缩场景">
+            <div className="slot-widget" aria-label="老虎机庄园微缩场景">
             <GameCanvas
               state={controller.gameState}
               mode={controller.mutationsDisabled ? "readonly" : "writer"}

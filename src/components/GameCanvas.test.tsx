@@ -124,7 +124,7 @@ describe("GameCanvas", () => {
       />,
     );
 
-    const canvas = screen.getByRole("img", { name: "DSH 像素老虎机场景" });
+    const canvas = screen.getByRole("img", { name: "老虎机庄园像素场景" });
     expect(canvas).not.toHaveAttribute("data-render-state", "ready");
     await act(async () => Promise.resolve());
     expect(drawImage).toHaveBeenCalledWith(assets.scene, 0, 0);

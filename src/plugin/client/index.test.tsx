@@ -58,12 +58,12 @@ describe("DSH shell companion", () => {
     vi.stubGlobal("fetch", fetcher);
     const { unmount } = render(createElement(View!));
 
-    await screen.findByRole("application", { name: "DSH 桌面老虎机" });
+    await screen.findByRole("application", { name: "老虎机庄园｜桌面像素生态养成" });
     await waitFor(() => expect(fetcher).toHaveBeenCalledWith(
       "/api/dsh-slot-widget/state?sessionId=dsh-slot-widget-global",
       expect.objectContaining({ method: "GET" }),
     ));
-    expect(screen.getByRole("application", { name: "DSH 桌面老虎机" })).toHaveClass("desktop--overlay");
+    expect(screen.getByRole("application", { name: "老虎机庄园｜桌面像素生态养成" })).toHaveClass("desktop--overlay");
     expect(document.head.querySelector("style[data-dsh-slot-widget]")).not.toBeNull();
 
     unmount();

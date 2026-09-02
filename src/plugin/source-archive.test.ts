@@ -30,8 +30,8 @@ const REQUIRED = [
 describe("release source archive", () => {
   it("derives the fixed release name and prefix and filters generated or private roots", () => {
     expect(sourceArchivePaths("0.2.0")).toEqual({
-      archiveName: "dsh-desktop-slot-widget-0.2.0-source.zip",
-      prefix: "dsh-desktop-slot-widget-0.2.0/",
+      archiveName: "dsh-slot-homestead-0.2.0-source.zip",
+      prefix: "dsh-slot-homestead-0.2.0/",
     });
 
     const included = validateTrackedPaths([
@@ -53,7 +53,7 @@ describe("release source archive", () => {
       "test-results/failure.png",
       "tmp/work.txt",
       "dist/app.js",
-      "dsh-desktop-slot-widget-0.2.0.tgz",
+      "dsh-slot-homestead-0.2.0.tgz",
     ]);
 
     expect(included).toContain("src/plugin/client/assets/scene-base.png");
@@ -63,14 +63,14 @@ describe("release source archive", () => {
     expect(included).toContain("SECURITY.md");
     expect(included).not.toContain("assets/generated.png");
     expect(included).not.toContain(".superpowers/internal.md");
-    expect(included).not.toContain("dsh-desktop-slot-widget-0.2.0.tgz");
+    expect(included).not.toContain("dsh-slot-homestead-0.2.0.tgz");
   });
 
   it("archives one resolved commit OID instead of re-reading symbolic HEAD", () => {
     const commit = "0123456789abcdef0123456789abcdef01234567";
     const args = sourceArchiveArguments(
       commit,
-      "dsh-desktop-slot-widget-0.2.0/",
+      "dsh-slot-homestead-0.2.0/",
       "/release/source.zip",
       ["README.md", "src/index.ts"],
     );
@@ -78,7 +78,7 @@ describe("release source archive", () => {
     expect(args).toEqual([
       "archive",
       "--format=zip",
-      "--prefix=dsh-desktop-slot-widget-0.2.0/",
+      "--prefix=dsh-slot-homestead-0.2.0/",
       "--output=/release/source.zip",
       commit,
       "--",
@@ -96,7 +96,7 @@ describe("release source archive", () => {
   });
 
   it("validates the archive as the exact prefixed allowlisted file set", () => {
-    const prefix = "dsh-desktop-slot-widget-0.2.0/";
+    const prefix = "dsh-slot-homestead-0.2.0/";
     const included = [...REQUIRED];
     const entries = [prefix, ...included.map((path) => `${prefix}${path}`)];
 

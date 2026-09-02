@@ -44,6 +44,7 @@ export interface GameCanvasProps {
 type AssetState = "loading" | "ready" | "failed";
 
 const SLOT_MARQUEE_BULBS = [176, 190, 204, 218, 232, 246] as const;
+const SCENE_ACCESSIBLE_NAME = "老虎机庄园像素场景";
 
 interface DragState {
   pointerId: number;
@@ -338,11 +339,11 @@ export function GameCanvas({
         width={384}
         height={288}
         role="img"
-        aria-label="DSH 像素老虎机场景"
+        aria-label={SCENE_ACCESSIBLE_NAME}
         data-render-state={assetState}
         data-scene-layer={includeSceneBase ? "complete-scene" : "dynamic-equipment"}
       >
-        DSH 像素老虎机场景
+        {SCENE_ACCESSIBLE_NAME}
       </canvas>
       <div className="slot-night-lighting" data-night-slot-lighting="machine" aria-hidden="true">
         <i

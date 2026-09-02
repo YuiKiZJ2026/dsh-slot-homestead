@@ -6,6 +6,7 @@ import { describe, expect, it } from "vitest";
 import {
   createDshInvocation,
   defaultPluginArchive,
+  parseArguments,
 } from "../../scripts/dsh-real-smoke.mjs";
 
 // @ts-expect-error Node globals are available in Vitest; browser-facing typecheck omits @types/node.
@@ -31,7 +32,7 @@ describe("real DSH CI gate contract", () => {
     expect(workflow).toContain(installDsh);
     expect(workflow).toContain("npm run build");
     expect(workflow).toContain(runSmoke);
-    expect(workflow).not.toContain("--tgz ./dsh-desktop-slot-widget-");
+    expect(workflow).not.toContain("--tgz ./dsh-slot-homestead-");
     expect(workflow).not.toMatch(/npx\s+@deepseek-ai\/dsh|pnpm\s+dlx/);
     expect(workflow).not.toContain("pnpm add --global");
 
@@ -54,6 +55,10 @@ describe("real DSH CI gate contract", () => {
     const manifest = JSON.parse(read("package.json"));
 
     expect(defaultPluginArchive()).toBe(`./${manifest.name}-${manifest.version}.tgz`);
+    expect(parseArguments(["--upgrade-from", "./legacy.tgz"])).toMatchObject({
+      tgz: `./${manifest.name}-${manifest.version}.tgz`,
+      upgradeFrom: "./legacy.tgz",
+    });
   });
 
   it("holds the old port and reaps failed starts before isolated-home teardown", () => {

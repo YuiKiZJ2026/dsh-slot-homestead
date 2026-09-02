@@ -5,7 +5,7 @@ import { readFileSync, rmSync, renameSync } from "node:fs";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
-const PACKAGE_NAME = "dsh-desktop-slot-widget";
+const PACKAGE_NAME = "dsh-slot-homestead";
 const INCLUDED_ROOTS = new Set([
   ".github",
   "docs",

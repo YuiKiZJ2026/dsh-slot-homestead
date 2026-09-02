@@ -8,7 +8,7 @@ export const COMPANION_WINDOW_PATH = "/api/dsh-slot-widget/window";
 export const COMPANION_SCRIPT_PATH = "/api/dsh-slot-widget/companion.js";
 const MAX_BODY_BYTES = 16 * 1_024;
 const COMPANION_HTML = `<!doctype html>
-<html lang="zh-CN"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1.0"><title>DSH 桌面老虎机</title></head>
+<html lang="zh-CN"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1.0"><title>老虎机庄园｜桌面像素生态养成</title></head>
 <body><div id="root"></div><script src="${COMPANION_SCRIPT_PATH}"></script></body></html>`;
 
 export interface HttpGameService {

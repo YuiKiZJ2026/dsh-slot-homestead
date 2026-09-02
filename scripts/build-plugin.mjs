@@ -19,7 +19,7 @@ const lib = resolve(root, "lib");
 const assets = resolve(root, "assets");
 const companion = resolve(root, "companion");
 const manifest = JSON.parse(readFileSync(resolve(root, "package.json"), "utf8"));
-const archive = resolve(root, `dsh-desktop-slot-widget-${manifest.version}.tgz`);
+const archive = resolve(root, `${manifest.name}-${manifest.version}.tgz`);
 const configFile = resolve(root, "vite.plugin.config.ts");
 const shouldPack = !process.argv.includes("--skip-pack");
 
@@ -50,7 +50,7 @@ if (bodyMap.sourceRoot !== undefined && bodyMap.sourceRoot !== "") {
 bodyMap.sources = bodyMap.sources.map((source) => mapRelativePath(lib, resolve(clientDir, source)));
 const wrapperPrefix = [
   "window.__ModuleLoader__.load({",
-  "  id: 'dsh-desktop-slot-widget',",
+  `  id: '${manifest.name}',`,
   "  factory(require) {",
   "    const module = { exports: {} }",
   "    const exports = module.exports",
@@ -108,7 +108,7 @@ writeFileSync(resolve(companion, "index.html"), `<!doctype html>
   <meta charset="UTF-8">
   <meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'self'; style-src 'unsafe-inline'; img-src 'self' file: data:; connect-src http://127.0.0.1:* http://localhost:*;">
   <meta name="viewport" content="width=device-width,initial-scale=1">
-  <title>DSH 桌面老虎机</title>
+  <title>老虎机庄园｜桌面像素生态养成</title>
   <style>html,body,#root{width:100%;height:100%;margin:0;overflow:hidden;background:transparent}</style>
 </head>
 <body><div id="root"></div><script src="../lib/companion.js"></script></body>

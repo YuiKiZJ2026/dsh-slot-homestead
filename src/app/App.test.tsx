@@ -44,9 +44,9 @@ describe("App", () => {
     render(<App />);
 
     expect(
-      screen.getByRole("application", { name: "DSH 桌面老虎机" }),
+      screen.getByRole("application", { name: "老虎机庄园｜桌面像素生态养成" }),
     ).toBeInTheDocument();
-    expect(screen.getByRole("application", { name: "DSH 桌面老虎机" }))
+    expect(screen.getByRole("application", { name: "老虎机庄园｜桌面像素生态养成" }))
       .toHaveStyle({ "--widget-width": "641px", "--widget-height": "277px" });
     expect(screen.getByTestId("wallet-count")).toHaveTextContent("0");
     expect(screen.getByText(/钱包/)).toBeInTheDocument();
@@ -55,21 +55,21 @@ describe("App", () => {
     expect(screen.queryByRole("button", { name: "打开工坊" })).not.toBeInTheDocument();
     expect(screen.getByRole("region", { name: "当前目标" })).toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "打开设置" })).not.toBeInTheDocument();
-    expect(screen.getByRole("img", { name: "DSH 像素老虎机场景" })).toHaveTextContent(
-      "DSH 像素老虎机场景",
+    expect(screen.getByRole("img", { name: "老虎机庄园像素场景" })).toHaveTextContent(
+      "老虎机庄园像素场景",
     );
-    expect(screen.getByRole("region", { name: "老虎机与养成生态" })).toBeInTheDocument();
+    expect(screen.getByRole("region", { name: "老虎机庄园：老虎机与养成生态" })).toBeInTheDocument();
     expect(screen.getByRole("region", { name: "养成生态" })).toHaveTextContent("鱼缸 1 / 3");
     const commandBar = screen.getByRole("region", { name: "工作台控制" });
     const ecosystemScene = screen.getByRole("region", { name: "养成生态" });
     expect(ecosystemScene).toContainElement(commandBar);
     expect(commandBar.parentElement).toHaveAttribute("data-layout", "contextual-one-row");
-    const ecosystemWidget = screen.getByRole("region", { name: "老虎机与养成生态" });
+    const ecosystemWidget = screen.getByRole("region", { name: "老虎机庄园：老虎机与养成生态" });
     expect(ecosystemWidget).toHaveAttribute("data-composition", "single-workbench-v3");
-    expect(screen.getByRole("img", { name: "DSH 像素老虎机场景" }))
+    expect(screen.getByRole("img", { name: "老虎机庄园像素场景" }))
       .toHaveAttribute("data-scene-layer", "dynamic-equipment");
     expect(ecosystemWidget.firstElementChild).toBe(screen.getByRole("region", { name: "养成生态" }));
-    expect(ecosystemWidget.lastElementChild).toHaveAttribute("aria-label", "老虎机微缩场景");
+    expect(ecosystemWidget.lastElementChild).toHaveAttribute("aria-label", "老虎机庄园微缩场景");
 
     const toolTrigger = screen.getByRole("button", { name: "打开老虎机工具抽屉" });
     expect(toolTrigger).toHaveAttribute("aria-expanded", "false");
@@ -133,7 +133,7 @@ describe("App", () => {
     const lightingClock = new FixedClock(new Date(2026, 7, 31, 20, 0));
     const { container } = render(<App lightingClock={lightingClock} />);
 
-    const app = screen.getByRole("application", { name: "DSH 桌面老虎机" });
+    const app = screen.getByRole("application", { name: "老虎机庄园｜桌面像素生态养成" });
     expect(app).toHaveAttribute("data-day-phase", "night");
     expect(screen.getByRole("status", { name: "当前系统光照：夜间熄灯" }))
       .toHaveTextContent("光照夜间熄灯");
@@ -379,7 +379,7 @@ describe("App", () => {
     render(<App createRuntime={() => runtime} />);
 
     expect(subscribe).toHaveBeenCalledOnce();
-    expect(screen.getByRole("application", { name: "DSH 桌面老虎机" })).toBeInTheDocument();
+    expect(screen.getByRole("application", { name: "老虎机庄园｜桌面像素生态养成" })).toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "打开演示控制台" })).not.toBeInTheDocument();
   });
 

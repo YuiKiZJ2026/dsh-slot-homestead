@@ -9,7 +9,10 @@ import { spawn } from "node:child_process";
 import { createServer } from "node:net";
 import { fileURLToPath } from "node:url";
 
-const PLUGIN_ID = "dsh-desktop-slot-widget";
+const CORDIS_ROW_ID = "dsh-desktop-slot-widget";
+const LEGACY_PACKAGE_NAME = "dsh-desktop-slot-widget";
+const PACKAGE_NAME = "dsh-slot-homestead";
+const PLUGIN_ID = PACKAGE_NAME;
 const DSH_VERSION = "0.1.1-rc.2";
 const PROFILE = "web";
 const COMMAND_TIMEOUT_MS = 180_000;
@@ -34,7 +37,7 @@ export function parseDshWebUrl(output) {
   return url.href;
 }
 
-export function configHasPluginRow(config, pluginId) {
+export function configHasPluginRow(config, pluginId, packageName = pluginId) {
   const lines = String(config).split(/\r?\n/);
   for (let index = 0; index < lines.length; index += 1) {
     const idMatch = /^(\s*)-\s+id:\s*(.*?)\s*$/.exec(lines[index]);
@@ -47,7 +50,7 @@ export function configHasPluginRow(config, pluginId) {
       const indent = line.length - line.trimStart().length;
       if (indent <= rowIndent && /^-\s+/.test(line.trimStart())) break;
       const nameMatch = /^\s*name:\s*(.*?)\s*$/.exec(line);
-      if (nameMatch !== null && yamlScalar(nameMatch[1]) === pluginId) return true;
+      if (nameMatch !== null && yamlScalar(nameMatch[1]) === packageName) return true;
     }
   }
   return false;
@@ -67,7 +70,14 @@ export function pluginEntryFromBootManifest(html, pluginId) {
   const entry = manifest.entries.find((candidate) =>
     isRecord(candidate) && candidate.id === pluginId);
   if (!isRecord(entry) || typeof entry.url !== "string" || typeof entry.rev !== "string") {
-    throw new Error(`DSH boot manifest is missing plugin ${pluginId}`);
+    const available = manifest.entries
+      .filter(isRecord)
+      .map((candidate) => candidate.id)
+      .filter((id) => typeof id === "string")
+      .join(", ");
+    throw new Error(
+      `DSH boot manifest is missing plugin ${pluginId}; available entries: ${available || "none"}`,
+    );
   }
   const clientUrl = new URL(entry.url, "http://127.0.0.1");
   if (clientUrl.pathname !== `/plugins/${pluginId}/client.js`) {
@@ -137,6 +147,13 @@ async function main() {
   const tgz = resolve(options.tgz);
   const tgzStat = await stat(tgz).catch(() => null);
   if (tgzStat === null || !tgzStat.isFile()) throw new Error(`Plugin tgz does not exist: ${tgz}`);
+  const upgradeFrom = options.upgradeFrom === undefined ? undefined : resolve(options.upgradeFrom);
+  if (upgradeFrom !== undefined) {
+    const upgradeStat = await stat(upgradeFrom).catch(() => null);
+    if (upgradeStat === null || !upgradeStat.isFile()) {
+      throw new Error(`Upgrade source tgz does not exist: ${upgradeFrom}`);
+    }
+  }
 
   const home = await mkdtemp(join(tmpdir(), "dsh-slot-real-smoke-"));
   const environment = {
@@ -152,24 +169,50 @@ async function main() {
     const version = await runCommand(dsh, ["--version"], environment, 30_000);
     assertExactDshVersion(version.stdout + version.stderr);
 
+    const firstPackageName = upgradeFrom === undefined ? PACKAGE_NAME : LEGACY_PACKAGE_NAME;
+    const firstPluginId = firstPackageName;
+    const firstTgz = upgradeFrom ?? tgz;
     await runCommand(
       dsh,
-      ["plugin", "--profile", PROFILE, "add", tgz],
+      ["plugin", "--profile", PROFILE, "add", firstTgz],
       environment,
       COMMAND_TIMEOUT_MS,
     );
     const installedConfig = await dumpConfig(dsh, environment);
-    if (!configHasPluginRow(installedConfig, PLUGIN_ID)) {
-      throw new Error(`Composed ${PROFILE} config is missing the ${PLUGIN_ID} row`);
+    if (!configHasPluginRow(installedConfig, CORDIS_ROW_ID, firstPackageName)) {
+      throw new Error(`Composed ${PROFILE} config is missing the ${CORDIS_ROW_ID} row`);
     }
 
     activeWeb = await startWeb(dsh, environment);
     const firstUrl = activeWeb.url;
-    const firstState = await assertRunningComposition(firstUrl);
+    const firstState = await assertRunningComposition(firstUrl, firstPluginId);
     const claimedState = await claimDaily(firstUrl, firstState);
     assertClaimTransition(firstState, claimedState);
     await stopWeb(activeWeb);
     activeWeb = null;
+
+    if (upgradeFrom !== undefined) {
+      await runCommand(
+        dsh,
+        ["plugin", "--profile", PROFILE, "remove", LEGACY_PACKAGE_NAME],
+        environment,
+        COMMAND_TIMEOUT_MS,
+      );
+      const legacyRemovedConfig = await dumpConfig(dsh, environment);
+      if (configHasPluginRow(legacyRemovedConfig, CORDIS_ROW_ID, LEGACY_PACKAGE_NAME)) {
+        throw new Error(`Composed ${PROFILE} config retained the legacy package after remove`);
+      }
+      await runCommand(
+        dsh,
+        ["plugin", "--profile", PROFILE, "add", tgz],
+        environment,
+        COMMAND_TIMEOUT_MS,
+      );
+      const upgradedConfig = await dumpConfig(dsh, environment);
+      if (!configHasPluginRow(upgradedConfig, CORDIS_ROW_ID, PACKAGE_NAME)) {
+        throw new Error(`Composed ${PROFILE} config is missing the renamed package row`);
+      }
+    }
 
     // Hold the first OS-assigned port while restarting, making the new-port
     // assertion deterministic instead of relying on allocator luck.
@@ -186,16 +229,21 @@ async function main() {
 
     await runCommand(
       dsh,
-      ["plugin", "--profile", PROFILE, "remove", PLUGIN_ID],
+      ["plugin", "--profile", PROFILE, "remove", PACKAGE_NAME],
       environment,
       COMMAND_TIMEOUT_MS,
     );
     const removedConfig = await dumpConfig(dsh, environment);
-    if (configHasPluginRow(removedConfig, PLUGIN_ID)) {
-      throw new Error(`Composed ${PROFILE} config retained the ${PLUGIN_ID} row after remove`);
+    if (configHasPluginRow(removedConfig, CORDIS_ROW_ID, PACKAGE_NAME)) {
+      throw new Error(`Composed ${PROFILE} config retained the ${CORDIS_ROW_ID} row after remove`);
     }
 
-    console.log(`real DSH smoke passed with ${basename(tgz)} in isolated profile ${PROFILE}`);
+    const upgradeLabel = upgradeFrom === undefined
+      ? ""
+      : ` after upgrading from ${basename(upgradeFrom)}`;
+    console.log(
+      `real DSH smoke passed with ${basename(tgz)}${upgradeLabel} in isolated profile ${PROFILE}`,
+    );
   } finally {
     if (activeWeb !== null) await forceStopWeb(activeWeb);
     if (heldRestartPort !== null) await closeServer(heldRestartPort);
@@ -203,16 +251,16 @@ async function main() {
   }
 }
 
-async function assertRunningComposition(baseUrl) {
+async function assertRunningComposition(baseUrl, pluginId = PLUGIN_ID) {
   const root = await requestText(new URL("/", baseUrl), {}, "DSH root");
-  pluginEntryFromBootManifest(root, PLUGIN_ID);
+  pluginEntryFromBootManifest(root, pluginId);
 
   const client = await requestText(
-    new URL(`/plugins/${PLUGIN_ID}/client.js`, baseUrl),
+    new URL(`/plugins/${pluginId}/client.js`, baseUrl),
     {},
     "plugin client bundle",
   );
-  assertClientBundle(client, PLUGIN_ID);
+  assertClientBundle(client, pluginId);
   return getState(baseUrl);
 }
 
@@ -461,11 +509,12 @@ function assertExactDshVersion(output) {
   }
 }
 
-function parseArguments(args) {
+export function parseArguments(args) {
   const result = {
     dsh: "dsh",
     dshEntry: undefined,
     tgz: defaultPluginArchive(),
+    upgradeFrom: undefined,
   };
   for (let index = 0; index < args.length; index += 2) {
     const flag = args[index];
@@ -474,6 +523,7 @@ function parseArguments(args) {
     if (flag === "--dsh") result.dsh = value;
     else if (flag === "--dsh-entry") result.dshEntry = value;
     else if (flag === "--tgz") result.tgz = value;
+    else if (flag === "--upgrade-from") result.upgradeFrom = value;
     else throw new Error(`Unknown argument ${flag}`);
   }
   return result;

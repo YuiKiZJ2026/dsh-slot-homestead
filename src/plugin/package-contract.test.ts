@@ -59,14 +59,15 @@ describe("published DSH bundle contract", () => {
     const manifest = JSON.parse(read("package.json"));
 
     expect(manifest).toMatchObject({
-      name: "dsh-desktop-slot-widget",
-      version: "0.8.0-beta.1",
+      name: "dsh-slot-homestead",
+      version: "0.8.0-beta.2",
       type: "module",
       main: "./lib/index.js",
       files: [
         "lib",
         "assets",
         "companion",
+        "docs/demo-preview.png",
         "cordis.patch.yml",
         "ASSETS.md",
         "README.md",
@@ -87,7 +88,7 @@ describe("published DSH bundle contract", () => {
       packageManager: "npm@11.9.0",
       license: "ISC",
       author: "YuiKiZJ2026 and contributors",
-      description: "A pixel-art slot companion plugin for DSH Desktop.",
+      description: "Slot Homestead, a pixel-art desktop ecosystem and slot companion for DSH Desktop.",
       keywords: [
         "deepseek-harness",
         "dsh",
@@ -96,15 +97,16 @@ describe("published DSH bundle contract", () => {
         "desktop-companion",
         "pixel-art",
         "plugin",
-        "slot-widget",
+        "life-sim",
+        "slot-homestead",
       ],
       repository: {
         type: "git",
-        url: "git+https://github.com/YuiKiZJ2026/dsh-desktop-slot-widget.git",
+        url: "git+https://github.com/YuiKiZJ2026/dsh-slot-homestead.git",
       },
-      homepage: "https://github.com/YuiKiZJ2026/dsh-desktop-slot-widget#readme",
+      homepage: "https://github.com/YuiKiZJ2026/dsh-slot-homestead#readme",
       bugs: {
-        url: "https://github.com/YuiKiZJ2026/dsh-desktop-slot-widget/issues",
+        url: "https://github.com/YuiKiZJ2026/dsh-slot-homestead/issues",
       },
       peerDependencies: {
         "@deepseek-ai/cordis": "^4.0.1",
@@ -131,7 +133,7 @@ describe("published DSH bundle contract", () => {
     expect(read("LICENSE")).toContain("ISC License");
     expect(read("LICENSE")).toContain("Permission to use, copy, modify, and/or distribute");
     expect(read("cordis.patch.yml")).toBe(
-      "- insert:\n    - id: dsh-desktop-slot-widget\n      name: dsh-desktop-slot-widget\n",
+      "- insert:\n    - id: dsh-desktop-slot-widget\n      name: dsh-slot-homestead\n",
     );
   });
 
@@ -153,7 +155,7 @@ describe("published DSH bundle contract", () => {
 
     expect(registrations).toHaveLength(1);
     expect(registrations[0]).toMatchObject({
-      id: "dsh-desktop-slot-widget",
+      id: "dsh-slot-homestead",
       factory: expect.any(Function),
     });
     expect(source.trimStart()).toMatch(/^window\.__ModuleLoader__\.load\(\{/);
@@ -261,6 +263,7 @@ describe("published DSH bundle contract", () => {
       "assets/scene-base.png",
       "companion/index.html",
       "cordis.patch.yml",
+      "docs/demo-preview.png",
       "lib/client.js",
       "lib/client.js.map",
       "lib/companion.js",

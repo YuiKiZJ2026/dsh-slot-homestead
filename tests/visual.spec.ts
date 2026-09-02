@@ -20,7 +20,7 @@ for (const viewport of [
     await page.goto("/");
     await waitForCanvasReady(page);
     await expect(
-      page.getByRole("application", { name: "DSH 桌面老虎机" }),
+      page.getByRole("application", { name: "老虎机庄园｜桌面像素生态养成" }),
     ).toHaveScreenshot(`desktop-${viewport.name}.png`, {
       animations: "disabled",
     });

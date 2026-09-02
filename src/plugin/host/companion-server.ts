@@ -107,7 +107,7 @@ function companionHtml(): string {
   return "<!doctype html><html lang=\"zh-CN\"><head><meta charset=\"UTF-8\">" +
     "<meta name=\"viewport\" content=\"width=device-width,initial-scale=1.0\">" +
     "<style>html,body,#root{width:100%;height:100%;margin:0;overflow:hidden}</style>" +
-    "<title>DSH 桌面老虎机</title></head><body><div id=\"root\"></div>" +
+    "<title>老虎机庄园｜桌面像素生态养成</title></head><body><div id=\"root\"></div>" +
     "<script src=\"./companion.js\"></script></body></html>";
 }
 

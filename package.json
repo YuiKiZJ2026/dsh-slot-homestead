@@ -1,12 +1,13 @@
 {
-  "name": "dsh-desktop-slot-widget",
-  "version": "0.8.0-beta.1",
-  "description": "A pixel-art slot companion plugin for DSH Desktop.",
+  "name": "dsh-slot-homestead",
+  "version": "0.8.0-beta.2",
+  "description": "Slot Homestead, a pixel-art desktop ecosystem and slot companion for DSH Desktop.",
   "main": "./lib/index.js",
   "files": [
     "lib",
     "assets",
     "companion",
+    "docs/demo-preview.png",
     "cordis.patch.yml",
     "ASSETS.md",
     "README.md",
@@ -54,15 +55,16 @@
     "desktop-companion",
     "pixel-art",
     "plugin",
-    "slot-widget"
+    "life-sim",
+    "slot-homestead"
   ],
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/YuiKiZJ2026/dsh-desktop-slot-widget.git"
+    "url": "git+https://github.com/YuiKiZJ2026/dsh-slot-homestead.git"
   },
-  "homepage": "https://github.com/YuiKiZJ2026/dsh-desktop-slot-widget#readme",
+  "homepage": "https://github.com/YuiKiZJ2026/dsh-slot-homestead#readme",
   "bugs": {
-    "url": "https://github.com/YuiKiZJ2026/dsh-desktop-slot-widget/issues"
+    "url": "https://github.com/YuiKiZJ2026/dsh-slot-homestead/issues"
   },
   "author": "YuiKiZJ2026 and contributors",
   "license": "ISC",

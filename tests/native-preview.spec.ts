@@ -102,7 +102,7 @@ test("ecosystem fast-forward shows growth immediately without opening a drawer",
   const ecosystem = page.getByRole("region", { name: "养成生态", exact: true });
   const sandbox = page.getByRole("region", { name: "预览测试沙盒" });
   const goldfish = page.locator('[data-resident-id="goldfish"]');
-  await expect(page.getByRole("application", { name: "DSH 桌面老虎机" }))
+  await expect(page.getByRole("application", { name: "老虎机庄园｜桌面像素生态养成" }))
     .toHaveAttribute("data-day-phase", "day");
   await expect(page.getByRole("region", { name: "鱼缸养成抽屉" })).toHaveCount(0);
   await expect(ecosystem).toContainText(/鱼缸 1 \/ 3.*鱼苗 0%/);
@@ -361,10 +361,10 @@ for (const viewport of VIEWPORTS) {
     await installReelDrawProbe(page);
     await page.setViewportSize(viewport);
     await page.goto("/native-preview.html");
-    await expect(page).toHaveTitle("DSH 原生插件预览");
+    await expect(page).toHaveTitle("老虎机庄园｜测试沙盒");
     await waitForCanvasReady(page);
 
-    const application = page.getByRole("application", { name: "DSH 桌面老虎机" });
+    const application = page.getByRole("application", { name: "老虎机庄园｜桌面像素生态养成" });
     await expect(application).toBeVisible();
     await expect(page.locator("vite-error-overlay")).toHaveCount(0);
     await expect(page.getByTestId("wallet-count")).toHaveText("8");

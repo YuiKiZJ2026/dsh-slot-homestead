@@ -5,7 +5,11 @@ interface SmokeSnapshot {
 }
 
 export function parseDshWebUrl(output: string): string;
-export function configHasPluginRow(config: string, pluginId: string): boolean;
+export function configHasPluginRow(
+  config: string,
+  pluginId: string,
+  packageName?: string,
+): boolean;
 export function pluginEntryFromBootManifest(
   html: string,
   pluginId: string,
@@ -22,6 +26,12 @@ export function createDshInvocation(
   nodeExecutable?: string,
 ): { readonly command: string; readonly prefixArgs: readonly string[] };
 export function defaultPluginArchive(): string;
+export function parseArguments(args: readonly string[]): {
+  readonly dsh: string;
+  readonly dshEntry?: string;
+  readonly tgz: string;
+  readonly upgradeFrom?: string;
+};
 export function assertClaimTransition(initial: SmokeSnapshot, claimed: SmokeSnapshot): void;
 export function assertPersistedSnapshot(
   expected: SmokeSnapshot,

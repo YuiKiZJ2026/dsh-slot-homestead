@@ -1,16 +1,17 @@
-# DSH Desktop Slot Widget
+# **老虎机庄园**｜桌面像素生态养成
 
-[![CI](https://github.com/YuiKiZJ2026/dsh-desktop-slot-widget/actions/workflows/ci.yml/badge.svg)](https://github.com/YuiKiZJ2026/dsh-desktop-slot-widget/actions/workflows/ci.yml)
+[![CI](https://github.com/YuiKiZJ2026/dsh-slot-homestead/actions/workflows/ci.yml/badge.svg)](https://github.com/YuiKiZJ2026/dsh-slot-homestead/actions/workflows/ci.yml)
 
-![DSH Desktop Slot Widget 预览](docs/demo-preview.png)
+![老虎机庄园预览](docs/demo-preview.png)
 
-一个面向社区版 DSH Desktop 2.x 的像素老虎机 companion 插件。DSH 启动后，Host 会创建
+**老虎机庄园**（技术包名 `dsh-slot-homestead`）是一款面向社区版 DSH Desktop 2.x 的
+桌面像素生态养成与老虎机 companion 插件。DSH 启动后，Host 会创建
 一个可在整个 Windows 桌面拖动的透明像素小窗；拖到屏幕边缘会自动收起，重新点击露出的
 边缘标签即可展开。小窗与 DSH 属于同一进程生命周期，彻底退出 DSH 后会一并关闭。Host
 负责保存钱包、收藏、Token 能量和待结算 spin。它不是 DeepSeek 官方产品，也不代表
 DeepSeek 或 DSH Desktop 的背书。
 
-> 当前版本为 `0.8.0-beta.1` 预发布版本，仅建议在可备份的测试 profile 中体验。
+> 当前版本为 `0.8.0-beta.2` 预发布版本，仅建议在可备份的测试 profile 中体验。
 > [视觉素材权利声明](ASSETS.md) 已完成；安装时请使用 GitHub Release 提供并附带校验值的
 > `.tgz`，不要把本仓库的源码快照直接当作可安装插件。
 
@@ -33,14 +34,14 @@ DeepSeek 或 DSH Desktop 的背书。
 ## 安装、升级与卸载
 
 只使用 GitHub Release 中预构建并附带校验值的 `.tgz`。下载
-`dsh-desktop-slot-widget-0.8.0-beta.1.tgz` 与 `SHA256SUMS.txt`，核对 SHA-256 后，在二者
+`dsh-slot-homestead-0.8.0-beta.2.tgz` 与 `SHA256SUMS.txt`，核对 SHA-256 后，在二者
 所在目录运行：
 
 ```bash
-dsh plugin --profile desktop add ./dsh-desktop-slot-widget-0.8.0-beta.1.tgz
+dsh plugin --profile desktop add ./dsh-slot-homestead-0.8.0-beta.2.tgz
 dsh --profile desktop --dump-config
 # restart DSH Desktop
-dsh plugin --profile desktop remove dsh-desktop-slot-widget
+dsh plugin --profile desktop remove dsh-slot-homestead
 ```
 
 安装后必须重启 DSH Desktop，让插件进入新的 Cordis generation。启动完成后，老虎机会
@@ -50,9 +51,19 @@ dsh plugin --profile desktop remove dsh-desktop-slot-widget
 按钮、文字和收藏品会保持同一比例，窗口不会出现系统滚动条，缩放值会写入 Host 存档并在
 重启后恢复。插件按 profile 安装；切换 profile 不会复制插件。
 
-从旧版本升级前先退出 DSH Desktop 并备份对应 profile。移除旧插件、添加新的预构建 tgz，
-再重启 DSH Desktop；不要手工编辑 profile manifest。Beta 版本保留向 0.7.x 及更早存档的
-迁移逻辑，但预发布期间仍建议保留可回滚备份。
+从 `0.8.0-beta.1` 或更早版本升级前，先退出 DSH Desktop 并备份对应 profile。由于本版把
+公开包名从 `dsh-desktop-slot-widget` 改为 `dsh-slot-homestead`，必须先移除旧包，再添加
+新 tgz，不能让两个包同时启用：
+
+```bash
+dsh plugin --profile desktop remove dsh-desktop-slot-widget
+dsh plugin --profile desktop add ./dsh-slot-homestead-0.8.0-beta.2.tgz
+# restart DSH Desktop
+```
+
+不要手工编辑 profile manifest。旧的 Cordis row ID、Host 存储 domain 与 API 路径均保持
+不变，因此钱包、收藏和生态存档会继续读取；Beta 版本也保留向 0.7.x 及更早存档的迁移
+逻辑，但预发布期间仍建议保留可回滚备份。
 
 不要把 GitHub 源码 URL 直接交给 `dsh plugin add`：源码仓库有意不跟踪 `lib/` 等构建产物，
 而 DSH/pnpm 对 Git 依赖构建脚本还有独立许可边界。GitHub Release 的预构建 tgz 是当前受支持
@@ -63,8 +74,11 @@ dsh plugin --profile desktop remove dsh-desktop-slot-widget
 ```yaml
 - insert:
     - id: dsh-desktop-slot-widget
-      name: dsh-desktop-slot-widget
+      name: dsh-slot-homestead
 ```
+
+这里的旧 `id` 是为存档与运行时兼容而保留的稳定内部标识；`name` 才是 DSH/pnpm 管理的
+新包名。
 
 ## 玩法与收藏盒
 
@@ -132,7 +146,7 @@ npm run test:e2e
 
 `npm run build` 生成 `lib/index.js`、lazy-CJS `lib/client.js`、独立的
 `lib/companion.js`、声明与 source map、伴生页、审计用 `assets/`，以及
-`dsh-desktop-slot-widget-0.8.0-beta.1.tgz`。
+`dsh-slot-homestead-0.8.0-beta.2.tgz`。
 
 发布候选必须从干净 checkout 使用锁文件重新安装，并按“构建 → 测试 → 打包 → 包契约”顺序
 生成确切产物：
@@ -145,7 +159,7 @@ npm run verify:release-artifact
 `verify:release-artifact` 先生成但不打包 `lib/`、`assets/` 与 `companion/`，完成类型和单元
 测试后才调用 `npm pack --ignore-scripts`，最后验证 tgz 的精确文件 allowlist。直接运行
 `npm pack` 也受 `prepack` 保护，会先重新构建产物。正式创建 GitHub Release 前还必须运行
-`npm run verify:release-metadata -- --tag v0.8.0-beta.1`；素材权利没有确认时该检查会主动失败。
+`npm run verify:release-metadata -- --tag v0.8.0-beta.2`；素材权利没有确认时该检查会主动失败。
 
 发布源码归档是显式、release-only 步骤，不属于普通 `npm run build`：
 
@@ -154,8 +168,8 @@ npm run build:source
 ```
 
 该命令只需要 Git 与 Node.js，只从已提交的 `HEAD` 读取严格 allowlist 内的源码、测试、配置和
-文档，并生成 `../dsh-desktop-slot-widget-0.8.0-beta.1-source.zip`，归档前缀为
-`dsh-desktop-slot-widget-0.8.0-beta.1/`。工作树改动不会混入归档；根 `.superpowers/`、
+文档，并生成 `../dsh-slot-homestead-0.8.0-beta.2-source.zip`，归档前缀为
+`dsh-slot-homestead-0.8.0-beta.2/`。工作树改动不会混入归档；根 `.superpowers/`、
 `.research/`、`node_modules/`、生成的根 `lib/`、`assets/`、tgz、`test-results/`、`tmp/`
 和 `dist/` 均排除。`public/assets/` 与 `src/plugin/client/assets/` 是受审源码资源，会保留。
 
@@ -166,6 +180,8 @@ boot manifest/Client/真实路由、优雅重启与持久化后再卸载插件�
 typecheck、完整 unit/build/package 流程和零像素容差视觉基线。覆盖率门禁要求 statements、
 branches、functions、lines 均不低于 80%。真实 DSH smoke 同时支持 Linux 的 `dsh` 命令和
 Windows 下通过 `--dsh-entry <lib/bin.js>` 直接调用固定 DSH 入口。
+改名候选还可向同一命令传入 `--upgrade-from <旧版.tgz>`，在一个隔离 profile 中完成
+“旧包写入状态 → 卸载旧包 → 安装新包 → 重启读取状态”的真实升级验证。
 
 ## 已知限制
 
@@ -173,7 +189,7 @@ DeepSeek Harness 仍处于 developer preview，公开事件、Client loader、El
 格式可能发生破坏性变化。本版固定面向上述 DSH Desktop 2.x / Electron 43 兼容基线，不声称
 兼容未知的未来 DSH/Desktop 版本。只应安装你信任的第三方 Host 插件。
 
-- `0.8.0-beta.1` 不是稳定版；升级前应备份测试 profile，遇到异常优先停止使用并附版本与
+- `0.8.0-beta.2` 不是稳定版；升级前应备份测试 profile，遇到异常优先停止使用并附版本与
   复现条件提交 Issue。
 - GitHub 源码安装不属于受支持发布路径；只验证 Release 中经校验的预构建 tgz。
 - 游戏经济、收藏和养成数据没有现金价值，也不承诺跨未来 DSH 预览版本永久兼容。

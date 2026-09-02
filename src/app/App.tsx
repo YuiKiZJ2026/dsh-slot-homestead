@@ -92,7 +92,7 @@ export function App({
       className={desktopClass}
       style={desktopStyle}
       role="application"
-      aria-label="DSH 桌面老虎机"
+      aria-label="老虎机庄园｜桌面像素生态养成"
       data-day-phase={dayPhase}
     >
       <div className="desktop__ambient" aria-hidden="true" />
@@ -188,7 +188,7 @@ export function App({
         className="ecosystem-widget"
         data-scale={scale}
         data-composition="single-workbench-v3"
-        aria-label="老虎机与养成生态"
+        aria-label="老虎机庄园：老虎机与养成生态"
       >
         <EcosystemScene
           state={controller.state}
@@ -212,7 +212,7 @@ export function App({
             />
           )}
         />
-        <div className="slot-widget" aria-label="老虎机微缩场景">
+        <div className="slot-widget" aria-label="老虎机庄园微缩场景">
           <GameCanvas
             state={controller.state}
             mode={mode}

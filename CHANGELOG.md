@@ -4,6 +4,15 @@
 
 ## [Unreleased]
 
+## [0.8.0-beta.2] - 2026-09-02
+
+- 将正式名称统一为「老虎机庄园｜桌面像素生态养成」。
+- 将 GitHub 仓库、npm 包名和新发布产物统一为 `dsh-slot-homestead`。
+- 保留旧 Cordis row ID、Host 存储 domain 和 API 路径；Client loader 按 DSH 要求改用新
+  包名，原有钱包、收藏与生态存档仍会继续读取。
+- 明确 `0.8.0-beta.1` 升级流程：先移除旧包，再安装新包，避免两个包同时挂载同一存档与路由。
+- 增加真实 DSH 改名升级门禁：由 beta.1 写入状态，卸载旧包并安装 beta.2 后验证存档继续存在。
+
 ## [0.8.0-beta.1] - 2026-09-02
 
 - 增加固定老虎机与鱼缸、种植园、牧场三场景轮换的共享桌面生态。
@@ -56,5 +65,6 @@
 - 交付首个可复现构建的 DSH 插件包。
 - 增加 Host 持久化、每日硬币、老虎机动画、收藏系统和安装包契约测试。
 
-[Unreleased]: https://github.com/YuiKiZJ2026/dsh-desktop-slot-widget/compare/v0.8.0-beta.1...HEAD
-[0.8.0-beta.1]: https://github.com/YuiKiZJ2026/dsh-desktop-slot-widget/releases/tag/v0.8.0-beta.1
+[Unreleased]: https://github.com/YuiKiZJ2026/dsh-slot-homestead/compare/v0.8.0-beta.2...HEAD
+[0.8.0-beta.2]: https://github.com/YuiKiZJ2026/dsh-slot-homestead/compare/v0.8.0-beta.1...v0.8.0-beta.2
+[0.8.0-beta.1]: https://github.com/YuiKiZJ2026/dsh-slot-homestead/releases/tag/v0.8.0-beta.1

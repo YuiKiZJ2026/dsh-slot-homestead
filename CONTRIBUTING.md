@@ -1,6 +1,6 @@
 # Contributing
 
-感谢你改进 DSH Desktop Slot Widget。提交代码前，请先确认改动仍符合插件的安全边界：插件只管理游戏状态，不读取提示词、回复、凭据或工具输出，也不改变 DSH 的审批和沙箱设置。
+感谢你改进「老虎机庄园｜桌面像素生态养成」。提交代码前，请先确认改动仍符合插件的安全边界：插件只管理游戏状态，不读取提示词、回复、凭据或工具输出，也不改变 DSH 的审批和沙箱设置。
 
 ## 开发环境
 
@@ -40,7 +40,7 @@ npm run test:e2e
 ```bash
 npm ci --legacy-peer-deps
 npm run verify:release-artifact
-npm run verify:release-metadata -- --tag v0.8.0-beta.1
+npm run verify:release-metadata -- --tag v0.8.0-beta.2
 ```
 
 最后一条只有在素材权利状态已经由维护者明确确认时才会通过。不要从带未提交
