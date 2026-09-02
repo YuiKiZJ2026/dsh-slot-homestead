@@ -5,6 +5,7 @@ import reelsUrl from "./assets/reel-symbols-runtime.png";
 import sceneUrl from "./assets/scene-base.png";
 import type { SceneAssetUrls } from "../../game/renderer/assets";
 import { HttpGameApi } from "./api";
+import { ECOSYSTEM_ASSET_URLS } from "./ecosystem-assets";
 import { PluginApp } from "./PluginApp";
 import { installPluginStyle } from "./style";
 
@@ -13,7 +14,6 @@ const ASSET_URLS: SceneAssetUrls = {
   reels: reelsUrl,
   collectibles: collectiblesUrl,
 };
-
 export const inject = ["slots"];
 export const GLOBAL_GAME_SCOPE_ID = "dsh-slot-widget-global";
 
@@ -60,6 +60,7 @@ export function SlotWidgetOverlay() {
       api={api}
       sessionId={GLOBAL_GAME_SCOPE_ID}
       assetUrls={ASSET_URLS}
+      ecosystemAssetUrls={ECOSYSTEM_ASSET_URLS}
       displayMode="overlay"
     />
   );

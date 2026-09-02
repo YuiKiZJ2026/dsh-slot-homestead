@@ -7,6 +7,7 @@ import {
 } from "react";
 import { playSfx } from "../audio/sfx";
 import { CATALOG_BY_ID } from "../domain/catalog";
+import { ECOSYSTEM_ITEM_BY_ID } from "../ecosystem/catalog";
 import { legacyPlacements, TABLE_POSITION_BY_ID, TABLE_POSITIONS } from "../domain/table-positions";
 import type { AgentStatus, GameState, ResolvedSpin, TablePositionId } from "../domain/types";
 import {
@@ -34,11 +35,15 @@ export interface GameCanvasProps {
   onInsertCoin?(): void;
   onPullLever?(): void;
   onSetPlacement?(id: string, positionId: TablePositionId | null): void;
+  onSettledResult?(spin: ResolvedSpin): void;
   onAnimationEvent(event: AnimationBoundaryEvent): void;
   loadAssets?: () => Promise<SceneAssets>;
+  includeSceneBase?: boolean;
 }
 
 type AssetState = "loading" | "ready" | "failed";
+
+const SLOT_MARQUEE_BULBS = [176, 190, 204, 218, 232, 246] as const;
 
 interface DragState {
   pointerId: number;
@@ -73,8 +78,10 @@ export function GameCanvas({
   onInsertCoin,
   onPullLever,
   onSetPlacement,
+  onSettledResult,
   onAnimationEvent,
   loadAssets = loadSceneAssets,
+  includeSceneBase = true,
 }: GameCanvasProps) {
   const systemReducedMotion = usePrefersReducedMotion();
   const canvasRef = useRef<HTMLCanvasElement>(null);
@@ -87,6 +94,8 @@ export function GameCanvas({
   const [rewardAnnouncement, setRewardAnnouncement] = useState("");
   const [snapPositionId, setSnapPositionId] = useState<TablePositionId | null>(null);
   const onAnimationEventRef = useRef(onAnimationEvent);
+  const onSettledResultRef = useRef(onSettledResult);
+  const reportedSpinIdRef = useRef<string | null>(null);
   const animationInputRef = useRef<AnimationInput>(animationInputFor(state, systemReducedMotion));
   const agentTimelineRef = useRef<AgentTimeline>({
     status: state.agentStatus ?? "idle",
@@ -95,6 +104,7 @@ export function GameCanvas({
   const soundDisabledRef = useRef(soundDisabled(state));
 
   onAnimationEventRef.current = onAnimationEvent;
+  onSettledResultRef.current = onSettledResult;
   animationInputRef.current = animationInputFor(state, systemReducedMotion);
   soundDisabledRef.current = soundDisabled(state);
 
@@ -111,7 +121,7 @@ export function GameCanvas({
         if (!current) return;
         const context = getCanvasContext(canvasRef.current);
         if (context === null) throw new Error("canvas context unavailable");
-        const renderer = new SceneRenderer(context, assets);
+        const renderer = new SceneRenderer(context, assets, { includeSceneBase });
         rendererRef.current = renderer;
         const input = animationInputRef.current;
         renderer.render(animationFrameFor({ ...input, elapsedMs: 0, agentElapsedMs: 0 }));
@@ -122,7 +132,7 @@ export function GameCanvas({
         if (!current) return;
         const context = getCanvasContext(canvasRef.current);
         fallbackContextRef.current = context;
-        if (context !== null) drawFallbackScene(context, 0);
+        if (context !== null) drawFallbackScene(context, 0, includeSceneBase);
         assetStateRef.current = "failed";
         setAssetState("failed");
       });
@@ -130,7 +140,7 @@ export function GameCanvas({
     return () => {
       current = false;
     };
-  }, [loadAssets]);
+  }, [includeSceneBase, loadAssets]);
 
   const spinKey = state.activeSpin === null
     ? "idle"
@@ -147,6 +157,17 @@ export function GameCanvas({
       setRewardAnnouncement(settledRewardMessage);
     }
   }, [settledRewardMessage]);
+
+  useEffect(() => {
+    const spin = state.activeSpin;
+    if (
+      spin?.stage !== "settled" ||
+      onSettledResultRef.current === undefined ||
+      reportedSpinIdRef.current === spin.id
+    ) return;
+    reportedSpinIdRef.current = spin.id;
+    onSettledResultRef.current(spin);
+  }, [state.activeSpin?.id, state.activeSpin?.stage]);
 
   useEffect(() => {
     let active = true;
@@ -176,7 +197,7 @@ export function GameCanvas({
 
       rendererRef.current?.render(viewModel);
       if (assetStateRef.current === "failed" && fallbackContextRef.current !== null) {
-        drawFallbackScene(fallbackContextRef.current, viewModel.leverProgress);
+        drawFallbackScene(fallbackContextRef.current, viewModel.leverProgress, includeSceneBase);
       }
 
       if (!stageCuePlayed) {
@@ -206,7 +227,7 @@ export function GameCanvas({
       active = false;
       if (scheduledFrame !== null) cancelScheduledFrame(scheduledFrame);
     };
-  }, [spinKey]);
+  }, [includeSceneBase, spinKey]);
 
   const assetsReady = assetState === "ready";
   const canPlay = assetsReady && mode === "writer" && (
@@ -319,9 +340,71 @@ export function GameCanvas({
         role="img"
         aria-label="DSH 像素老虎机场景"
         data-render-state={assetState}
+        data-scene-layer={includeSceneBase ? "complete-scene" : "dynamic-equipment"}
       >
         DSH 像素老虎机场景
       </canvas>
+      <div className="slot-night-lighting" data-night-slot-lighting="machine" aria-hidden="true">
+        <i
+          className="slot-night-light slot-night-light--cabinet"
+          data-slot-night-light="cabinet"
+          aria-hidden="true"
+        />
+        <div
+          className="slot-night-light slot-night-light--marquee"
+          data-slot-night-light="marquee"
+          aria-hidden="true"
+        >
+          <svg
+            className="slot-night-light__pixel-star"
+            data-slot-star="marquee"
+            viewBox="0 0 21 21"
+            width="21"
+            height="21"
+            shapeRendering="crispEdges"
+            style={{ left: 202, top: 24 }}
+            aria-hidden="true"
+            focusable="false"
+          >
+            <g fill="#f6a52e">
+              <rect data-slot-star-pixel x="9" y="0" width="3" height="6" />
+              <rect data-slot-star-pixel x="0" y="6" width="21" height="3" />
+              <rect data-slot-star-pixel x="3" y="9" width="15" height="3" />
+              <rect data-slot-star-pixel x="6" y="12" width="9" height="3" />
+              <rect data-slot-star-pixel x="3" y="15" width="6" height="3" />
+              <rect data-slot-star-pixel x="12" y="15" width="6" height="3" />
+              <rect data-slot-star-pixel x="0" y="18" width="3" height="3" />
+              <rect data-slot-star-pixel x="18" y="18" width="3" height="3" />
+            </g>
+            <g fill="#fff1a6">
+              <rect data-slot-star-pixel x="9" y="3" width="3" height="6" />
+              <rect data-slot-star-pixel x="6" y="6" width="9" height="3" />
+              <rect data-slot-star-pixel x="6" y="9" width="9" height="3" />
+              <rect data-slot-star-pixel x="9" y="12" width="3" height="3" />
+            </g>
+          </svg>
+          {SLOT_MARQUEE_BULBS.map((left, index) => (
+            <i
+              className="slot-night-light__bulb"
+              data-slot-bulb={index + 1}
+              data-slot-bulb-bank={index % 2 === 0 ? "a" : "b"}
+              key={left}
+              style={{ left, top: 52 }}
+              aria-hidden="true"
+            />
+          ))}
+        </div>
+        <i
+          className="slot-night-light slot-night-light--reels"
+          data-slot-night-light="reels"
+          aria-hidden="true"
+        />
+        <i
+          className="slot-night-light slot-night-light--control-panel"
+          data-slot-night-light="control-panel"
+          aria-hidden="true"
+        />
+      </div>
       <div className="table-drop-hit-zones" aria-hidden="true">
         <i className="table-drop-hit-zone table-drop-hit-zone--left" />
         <i className="table-drop-hit-zone table-drop-hit-zone--right" />
@@ -428,6 +511,7 @@ function payoutCoinAmountFor(spin: ResolvedSpin | null): number {
   if (spin.reward.kind === "collectible") {
     return spin.reward.conversionCoins + spin.reward.bonusCoins;
   }
+  if (spin.reward.kind === "ecosystem-item") return spin.reward.conversionCoins;
   return 0;
 }
 
@@ -455,6 +539,12 @@ function rewardMessageFor(spin: ResolvedSpin | null): string {
   if (spin?.stage !== "settled") return "";
   if (spin.reward.kind === "none") return "本次没有奖励。";
   if (spin.reward.kind === "coins") return `获得 ${spin.reward.amount} 枚硬币。`;
+  if (spin.reward.kind === "ecosystem-item") {
+    const item = ECOSYSTEM_ITEM_BY_ID[spin.reward.itemId];
+    return spin.reward.isDuplicate
+      ? `重复的${item?.name ?? "生态物品"}已折算为 ${spin.reward.conversionCoins} 枚硬币。`
+      : `获得${item?.name ?? "生态物品"}，已送到养成场景。`;
+  }
   const item = CATALOG_BY_ID[spin.reward.collectibleId];
   if (spin.reward.isDuplicate) {
     return `重复收藏品已折算为 ${spin.reward.conversionCoins + spin.reward.bonusCoins} 枚硬币。`;
@@ -509,9 +599,14 @@ function cancelScheduledFrame(frame: ScheduledFrame): void {
   globalThis.clearTimeout(frame.id);
 }
 
-function drawFallbackScene(context: CanvasRenderingContext2D, leverProgress: number): void {
+function drawFallbackScene(
+  context: CanvasRenderingContext2D,
+  leverProgress: number,
+  includeSceneBase = true,
+): void {
   context.imageSmoothingEnabled = false;
   context.clearRect(0, 0, 384, 288);
+  if (!includeSceneBase) return;
   context.fillStyle = "#111b35";
   context.fillRect(24, 206, 336, 54);
   context.fillStyle = "#65371f";

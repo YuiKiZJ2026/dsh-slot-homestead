@@ -141,6 +141,25 @@ describe("animationFrameFor", () => {
     expect(frame.effects?.moonGlow).toBeGreaterThan(0);
   });
 
+  it("adds a subtle persistent sparkle when a tabletop combo is active", () => {
+    const active = animationFrameFor({
+      ...base,
+      stage: "settled",
+      agentElapsedMs: 400,
+      displayed: ["plant", "book-stand"],
+    });
+    const inactive = animationFrameFor({
+      ...base,
+      stage: "settled",
+      agentElapsedMs: 400,
+      displayed: ["plant"],
+    });
+
+    expect(active.sparkles.length).toBeGreaterThan(0);
+    expect(active.sparkles.length).toBeLessThanOrEqual(6);
+    expect(inactive.sparkles).toEqual([]);
+  });
+
   it("samples the working panel sweep and robot indicator", () => {
     const frame = animationFrameFor({
       ...base,

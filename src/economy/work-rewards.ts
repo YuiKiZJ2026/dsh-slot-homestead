@@ -1,6 +1,7 @@
 import type { DshEvent } from "../dsh/events";
 import type { DailyLedger, DateKey, GameState } from "../domain/types";
 import { localDateKey } from "../time/clock";
+import { advanceEcosystemFromWork } from "../ecosystem/ecosystem";
 
 const DAILY_AWARD = 3;
 const WORK_COIN_CAP = 25;
@@ -198,11 +199,11 @@ function applyFocusMinutes(
     focusCoins: focusCoins + reward,
   };
 
-  return {
+  return advanceEcosystemFromWork({
     ...state,
     wallet: Math.max(0, state.wallet) + reward,
     dailyLedgers: { ...state.dailyLedgers, [eventDate]: nextLedger },
-  };
+  }, reward);
 }
 
 function awardWorkCoins(state: GameState, date: DateKey, requestedCoins: number): GameState {
@@ -214,14 +215,14 @@ function awardWorkCoins(state: GameState, date: DateKey, requestedCoins: number)
     return state;
   }
 
-  return {
+  return advanceEcosystemFromWork({
     ...state,
     wallet: Math.max(0, state.wallet) + awardedCoins,
     dailyLedgers: {
       ...state.dailyLedgers,
       [date]: { ...ledger, workCoins: workCoins + awardedCoins },
     },
-  };
+  }, awardedCoins);
 }
 
 function pruneExpiredRecords(state: GameState, nowDate: DateKey): GameState {

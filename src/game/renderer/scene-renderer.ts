@@ -41,6 +41,7 @@ export class SceneRenderer {
   constructor(
     private readonly context: CanvasRenderingContext2D,
     private readonly assets: SceneAssets,
+    private readonly options: { readonly includeSceneBase?: boolean } = {},
   ) {
     this.context.imageSmoothingEnabled = false;
   }
@@ -50,7 +51,7 @@ export class SceneRenderer {
     context.imageSmoothingEnabled = false;
     context.clearRect(0, 0, CANVAS_WIDTH, CANVAS_HEIGHT);
     if (viewModel.starryTheme) this.drawStarryDesktop();
-    context.drawImage(this.assets.scene, 0, 0);
+    if (this.options.includeSceneBase !== false) context.drawImage(this.assets.scene, 0, 0);
     this.drawReels(viewModel);
     this.drawLever(viewModel.leverProgress);
     this.drawDisplayedCollectibles(viewModel);

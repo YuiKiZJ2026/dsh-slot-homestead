@@ -57,6 +57,21 @@ describe("CollectionPanel", () => {
     });
     expect(onSetPlacement).toHaveBeenCalledWith("crystal", null);
   });
+
+  it("surfaces active and nearly completed tabletop combos", () => {
+    const state = createInitialState();
+    state.ownedCollectibles = ["plant", "book-stand"];
+    state.tablePlacements = [{ itemId: "plant", positionId: "left-rear-round" }];
+    const { rerender } = render(
+      <CollectionPanel open state={state} onClose={() => undefined} />,
+    );
+
+    expect(screen.getByText("组合提示：静谧书桌 1 / 2")).toBeVisible();
+
+    state.tablePlacements.push({ itemId: "book-stand", positionId: "left-rear-small" });
+    rerender(<CollectionPanel open state={state} onClose={() => undefined} />);
+    expect(screen.getByText("已点亮：静谧书桌")).toBeVisible();
+  });
 });
 
 function dataTransfer() {

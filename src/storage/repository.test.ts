@@ -130,6 +130,12 @@ describe("GameStateSchema", () => {
       conversionCoins: 3,
       bonusCoins: 2,
     },
+    {
+      kind: "ecosystem-item",
+      itemId: "moon-carp",
+      isDuplicate: true,
+      conversionCoins: 12,
+    },
   ] satisfies ResolvedReward[])("accepts the $kind reward variant", (reward) => {
     expect(parseGameState(stateWithReward(reward)).activeSpin?.reward).toEqual(reward);
   });
@@ -144,6 +150,13 @@ describe("GameStateSchema", () => {
 
     expect(parseGameState(first).activeSpin?.reels).toEqual(["moon", "robot", "coin"]);
     expect(parseGameState(second).settings.scale).toBe(2);
+  });
+
+  it("round-trips the optional desktop companion scale", () => {
+    const state = populatedState();
+    state.settings.companionScale = 1.25;
+
+    expect(parseGameState(state).settings.companionScale).toBe(1.25);
   });
 
   it.each([
@@ -184,6 +197,12 @@ describe("GameStateSchema", () => {
       isDuplicate: false,
       conversionCoins: 0,
       bonusCoins: 0.5,
+    }],
+    ["ecosystem conversion", {
+      kind: "ecosystem-item",
+      itemId: "goldfish",
+      isDuplicate: true,
+      conversionCoins: -1,
     }],
   ] as const)("rejects an invalid %s", (_description, reward) => {
     expect(() => parseGameState(stateWithReward(reward as ResolvedReward))).toThrow();
@@ -283,6 +302,22 @@ describe("GameStateSchema", () => {
     expect(Object.keys(parsed.dailyLedgers)).toEqual([DATE_KEY]);
     expect(Object.getPrototypeOf(parsed.dailyLedgers)).toBeNull();
     expect(Object.hasOwn(parsed.dailyLedgers, DATE_KEY)).toBe(true);
+  });
+
+  it("upgrades a legacy ecosystem snapshot with a fresh time-based lifecycle", () => {
+    const state = populatedState();
+    const { lifecycle: _legacyMissingLifecycle, ...legacyEcosystem } = state.ecosystem;
+    const legacy = { ...state, ecosystem: legacyEcosystem } as unknown;
+
+    const parsed = parseGameState(legacy);
+
+    expect(parsed.ecosystem.lifecycle).toMatchObject({
+      lastSimulatedAt: null,
+      fish: { goldfish: { count: 1, growth: 0 } },
+      plots: { "1": { seedId: "carrot-seed", growth: 0, readyYield: 0 } },
+      livestock: { chick: { adults: 0, juveniles: 1, juvenileGrowth: 0 } },
+      produce: {},
+    });
   });
 
   it.each([

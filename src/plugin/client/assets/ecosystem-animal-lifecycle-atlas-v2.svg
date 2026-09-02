@@ -1,0 +1,112 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="600" height="600" viewBox="0 0 600 600" shape-rendering="crispEdges">
+  <style>
+    .ol{stroke:#4b291d;stroke-width:7;stroke-linejoin:miter;stroke-linecap:square}
+    .ol2{stroke:#6b3823;stroke-width:5;stroke-linejoin:miter;stroke-linecap:square}
+    .ink{fill:#291918}.deep{fill:#6b3823}.rust{fill:#a84b2f}.red{fill:#d35a38}
+    .yellow{fill:#e99a24}.gold{fill:#ffc94d}.cream{fill:#ffe3a0}.white{fill:#fff4cf}
+    .fur{fill:#c99662}.fur2{fill:#8f5f43}.pale{fill:#ead2aa}.shadow{fill:#aa805e}
+    .teal{fill:#527c70}.grass{fill:#7f8b45}
+  </style>
+
+  <!-- Row 1: chicken; chick, pullet, adult hen. -->
+  <g transform="translate(0 0)">
+    <path class="yellow ol" d="M66 86H78V70H88V62H112V66H122V78H134V90H142V122H134V134H122V142H82V138H66V130H58V98H66Z"/>
+    <path class="gold ol2" d="M66 98L46 86V110L58 118L70 112Z"/>
+    <path class="yellow ol2" d="M76 136H92V146H80V158H68V150H76ZM108 138H124V148H136V158H112V148H108Z"/>
+    <rect class="ink" x="116" y="82" width="10" height="10"/>
+    <rect class="white" x="118" y="82" width="4" height="4"/>
+    <path class="gold ol2" d="M136 94H154L142 106H134Z"/>
+    <rect class="cream" x="84" y="72" width="18" height="8"/>
+  </g>
+  <g transform="translate(200 0)">
+    <path class="yellow ol" d="M62 74H78V58H90V50H112V56H124V70H138V84H148V116H140V132H128V144H112V152H78V148H62V136H54V92H62Z"/>
+    <path class="rust ol" d="M64 91L42 70V94H30V118H46L64 112Z"/>
+    <path class="gold ol2" d="M80 142H96V154H84V170H68V160H78ZM112 144H128V156H142V168H116V156H112Z"/>
+    <path class="red ol2" d="M88 54V38H98V48H108V34H118V56Z"/>
+    <rect class="ink" x="126" y="78" width="11" height="11"/>
+    <rect class="white" x="129" y="78" width="4" height="4"/>
+    <path class="gold ol2" d="M142 92H164L150 106H140Z"/>
+    <path class="rust" d="M72 102H102V130H84V122H72Z"/>
+  </g>
+  <g transform="translate(400 0)">
+    <path class="yellow ol" d="M50 68H68V50H80V40H112V46H128V62H144V78H156V96H164V126H156V140H144V150H126V158H78V154H58V144H46V128H38V88H46Z"/>
+    <path class="rust ol" d="M52 82L34 48L26 76L10 66L18 100L8 112H34L54 120Z"/>
+    <path class="red ol" d="M82 44V22H94V36H104V16H116V34H128V22H138V54H112Z"/>
+    <path class="gold ol2" d="M84 152H102V166H88V184H68V172H82ZM120 154H138V168H154V182H124V168H120Z"/>
+    <path class="rust ol2" d="M66 100H112V140H88V132H66Z"/>
+    <path class="gold" d="M72 104H96V116H72Z"/>
+    <rect class="ink" x="140" y="72" width="12" height="12"/>
+    <rect class="white" x="143" y="72" width="4" height="4"/>
+    <path class="gold ol2" d="M156 88H184L166 104H154Z"/>
+    <path class="red ol2" d="M142 106H158V120H150V132H140Z"/>
+  </g>
+
+  <!-- Row 2: lop rabbit; kit, juvenile, adult. -->
+  <g transform="translate(0 200)">
+    <path class="pale ol" d="M66 94H76V80H88V72H112V76H126V88H136V104H144V130H136V142H124V150H78V146H64V136H56V108H64Z"/>
+    <path class="fur ol" d="M76 88L62 54H74L90 82ZM118 82L132 50H144L136 94Z"/>
+    <rect class="ink" x="118" y="98" width="10" height="10"/>
+    <rect class="white" x="121" y="98" width="3" height="3"/>
+    <rect class="rust" x="132" y="116" width="9" height="7"/>
+    <rect class="white ol2" x="46" y="116" width="18" height="20"/>
+    <rect class="fur2" x="78" y="138" width="16" height="14"/>
+    <rect class="fur2" x="116" y="140" width="20" height="12"/>
+  </g>
+  <g transform="translate(200 200)">
+    <path class="pale ol" d="M54 84H68V66H82V56H116V62H132V78H144V92H154V126H146V140H132V152H112V158H70V154H54V144H46V98H54Z"/>
+    <path class="fur ol" d="M68 72L44 34H58L84 60L88 80ZM122 68L146 30H160L148 82L136 96Z"/>
+    <path class="fur2 ol2" d="M56 120H82V150H64Z"/>
+    <rect class="ink" x="132" y="86" width="11" height="11"/>
+    <rect class="white" x="135" y="86" width="4" height="4"/>
+    <rect class="rust" x="148" y="108" width="10" height="8"/>
+    <rect class="white ol2" x="32" y="106" width="20" height="24"/>
+    <rect class="fur2" x="74" y="150" width="20" height="14"/>
+    <rect class="fur2" x="120" y="148" width="28" height="16"/>
+  </g>
+  <g transform="translate(400 200)">
+    <path class="pale ol" d="M40 76H58V56H74V46H120V52H138V68H152V82H164V100H172V134H164V148H150V158H132V166H68V162H48V152H36V138H28V94H36Z"/>
+    <path class="fur ol" d="M58 62L28 18H44L80 48L88 78ZM132 58L164 16H182L166 82L150 104Z"/>
+    <path class="fur2 ol2" d="M42 114H76V158H52Z"/>
+    <path class="shadow" d="M84 60H116V72H128V86H90V78H84Z"/>
+    <rect class="ink" x="148" y="78" width="12" height="12"/>
+    <rect class="white" x="151" y="78" width="4" height="4"/>
+    <rect class="rust" x="166" y="105" width="11" height="9"/>
+    <rect class="white ol2" x="16" y="106" width="24" height="28"/>
+    <rect class="fur2" x="64" y="158" width="28" height="18"/>
+    <rect class="fur2" x="132" y="156" width="34" height="20"/>
+  </g>
+
+  <!-- Row 3: alpaca; cria, juvenile, adult. -->
+  <g transform="translate(0 400)">
+    <path class="fur ol" d="M58 94H74V82H118V90H132V108H140V140H128V150H70V146H56V132H48V108H56Z"/>
+    <path class="pale ol" d="M108 90V58H116V44H136V50H146V66H154V94H144V106H128V100H118V90Z"/>
+    <path class="fur2 ol2" d="M64 142H78V166H62ZM110 146H124V168H108Z"/>
+    <path class="pale ol2" d="M48 104L34 94V110L50 120Z"/>
+    <rect class="ink" x="136" y="58" width="9" height="9"/>
+    <rect class="white" x="138" y="58" width="3" height="3"/>
+    <rect class="deep" x="148" y="78" width="10" height="7"/>
+    <rect class="cream" x="70" y="92" width="30" height="10"/>
+  </g>
+  <g transform="translate(200 400)">
+    <path class="fur ol" d="M44 88H64V76H122V84H140V102H150V142H138V154H64V150H46V138H36V102H44Z"/>
+    <path class="pale ol" d="M112 84V42H120V28H144V34H156V52H164V92H154V108H134V100H122V84Z"/>
+    <path class="fur2 ol2" d="M52 148H70V180H50ZM86 150H104V178H84ZM124 150H142V182H122Z"/>
+    <path class="pale ol2" d="M38 98L20 84V104L40 118Z"/>
+    <rect class="ink" x="148" y="44" width="10" height="10"/>
+    <rect class="white" x="151" y="44" width="3" height="3"/>
+    <rect class="deep" x="160" y="70" width="11" height="8"/>
+    <path class="cream" d="M60 82H112V94H124V110H104V100H60Z"/>
+  </g>
+  <g transform="translate(400 400)">
+    <path class="fur ol" d="M26 78H50V64H128V72H148V92H160V142H148V156H128V164H54V160H34V148H22V132H14V94H22Z"/>
+    <path class="pale ol" d="M116 74V26H126V10H154V16H168V38H176V92H166V108H142V100H128V74Z"/>
+    <path class="fur2 ol2" d="M34 154H54V192H30ZM72 158H92V190H68ZM118 158H140V194H116Z"/>
+    <path class="pale ol2" d="M22 90L6 72V98L24 116Z"/>
+    <rect class="ink" x="158" y="30" width="12" height="12"/>
+    <rect class="white" x="161" y="30" width="4" height="4"/>
+    <rect class="deep" x="172" y="62" width="12" height="9"/>
+    <path class="cream" d="M42 70H116V82H132V102H112V92H76V102H52V90H42Z"/>
+    <path class="shadow" d="M44 118H136V148H120V138H96V150H70V138H44Z"/>
+    <rect class="teal" x="126" y="82" width="10" height="8"/>
+  </g>
+</svg>

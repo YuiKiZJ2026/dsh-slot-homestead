@@ -1,4 +1,5 @@
 import type { HostState } from "../shared/contracts";
+import { createInitialEcosystemState } from "../../domain/types";
 
 export interface GameDomain {
   readonly global: {
@@ -10,7 +11,7 @@ export interface GameDomain {
 
 export function createInitialHostState(): HostState {
   return {
-    schemaVersion: 3,
+    schemaVersion: 4,
     revision: 0,
     wallet: 0,
     lastGrantedLocalDate: null,
@@ -23,6 +24,7 @@ export function createInitialHostState(): HostState {
     tablePlacements: [],
     settings: { muted: true, reducedMotion: false, scale: 1, companionScale: 1 },
     pendingSpin: null,
+    ecosystem: createInitialEcosystemState(),
     recentCommands: {},
   };
 }

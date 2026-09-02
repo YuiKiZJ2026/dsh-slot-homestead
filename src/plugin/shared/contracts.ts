@@ -1,5 +1,6 @@
 import { z } from "zod";
 import { TABLE_POSITION_IDS } from "../../domain/table-positions";
+import { createInitialEcosystemState } from "../../domain/types";
 
 const nonNegativeSafeInteger = z.number().int().nonnegative().safe();
 const identifier = z.string().min(1).max(256);
@@ -47,6 +48,70 @@ const gameSettingsSchema = z
     companionScale: z.number().min(0.75).max(1.6).optional(),
   })
   .strict();
+const lifecycleGrowth = z.number().finite().min(0).max(100);
+const nullableLifecycleTimestamp = z.iso.datetime({ offset: true }).nullable();
+const ecosystemFishLifeSchema = z.object({
+  count: nonNegativeSafeInteger,
+  growth: lifecycleGrowth,
+  boostedUntil: nullableLifecycleTimestamp,
+}).strict();
+const ecosystemPlotLifeSchema = z.object({
+  seedId: identifier.nullable(),
+  growth: lifecycleGrowth,
+  readyYield: nonNegativeSafeInteger.max(1),
+  boostedUntil: nullableLifecycleTimestamp,
+  generation: nonNegativeSafeInteger,
+}).strict();
+const ecosystemLivestockLifeSchema = z.object({
+  adults: nonNegativeSafeInteger,
+  juveniles: nonNegativeSafeInteger,
+  juvenileGrowth: lifecycleGrowth,
+  production: lifecycleGrowth,
+  readyProducts: nonNegativeSafeInteger.max(9),
+  boostedUntil: nullableLifecycleTimestamp,
+  generation: nonNegativeSafeInteger,
+}).strict();
+const ecosystemLifecycleSchema = z.object({
+  lastSimulatedAt: nullableLifecycleTimestamp,
+  fish: z.record(identifier, ecosystemFishLifeSchema),
+  plots: z.object({
+    "1": ecosystemPlotLifeSchema,
+    "2": ecosystemPlotLifeSchema,
+    "3": ecosystemPlotLifeSchema,
+    "4": ecosystemPlotLifeSchema,
+    "5": ecosystemPlotLifeSchema,
+    "6": ecosystemPlotLifeSchema,
+  }).strict(),
+  livestock: z.record(identifier, ecosystemLivestockLifeSchema),
+  produce: z.record(identifier, nonNegativeSafeInteger),
+}).strict();
+const ecosystemStateSchema = z.object({
+  discovered: z.array(identifier).refine((items) => new Set(items).size === items.length),
+  selected: z.object({
+    aquarium: identifier,
+    garden: identifier,
+    animals: identifier,
+  }).strict(),
+  supplies: z.object({
+    fishFeed: nonNegativeSafeInteger.max(999),
+    fertilizer: nonNegativeSafeInteger.max(999),
+    animalFeed: nonNegativeSafeInteger.max(999),
+  }).strict(),
+  progress: z.object({
+    aquarium: nonNegativeSafeInteger.max(100),
+    garden: nonNegativeSafeInteger.max(100),
+    animals: nonNegativeSafeInteger.max(100),
+  }).strict(),
+  milestones: z.object({
+    aquarium: nonNegativeSafeInteger,
+    garden: nonNegativeSafeInteger,
+    animals: nonNegativeSafeInteger,
+  }).strict(),
+  harmony: nonNegativeSafeInteger.max(100),
+  lifecycle: ecosystemLifecycleSchema.optional().transform(
+    (value) => value ?? createInitialEcosystemState().lifecycle,
+  ),
+}).strict();
 const reelSymbolSchema = z.enum(["coin", "leaf", "crystal", "moon", "robot"]);
 const rewardSchema = z.discriminatedUnion("kind", [
   z.object({ kind: z.literal("none") }).strict(),
@@ -64,6 +129,14 @@ const rewardSchema = z.discriminatedUnion("kind", [
       isDuplicate: z.boolean(),
       conversionCoins: nonNegativeSafeInteger,
       bonusCoins: nonNegativeSafeInteger,
+    })
+    .strict(),
+  z
+    .object({
+      kind: z.literal("ecosystem-item"),
+      itemId: identifier,
+      isDuplicate: z.boolean(),
+      conversionCoins: nonNegativeSafeInteger,
     })
     .strict(),
 ]);
@@ -89,6 +162,7 @@ const publicSnapshotFields = {
   inventory: z.array(identifier),
   displaySlots: z.array(identifier).max(12),
   tablePlacements: z.array(tablePlacementSchema).max(12).optional(),
+  ecosystem: ecosystemStateSchema,
   settings: gameSettingsSchema,
   pendingSpin: pendingSpinSchema.nullable(),
   agentStatus: z.enum(["idle", "working"]),
@@ -97,7 +171,14 @@ const publicSnapshotFields = {
 
 export const publicSnapshotSchema = z.object(publicSnapshotFields).strict();
 export type PublicSnapshot = z.infer<typeof publicSnapshotSchema>;
-const durableCommandSnapshotSchema = publicSnapshotSchema.omit({ agentStatus: true });
+const durableCommandSnapshotSchema = publicSnapshotSchema
+  .omit({ agentStatus: true, ecosystem: true })
+  .extend({
+    ecosystem: ecosystemStateSchema.optional().transform(
+      (value) => value ?? createInitialEcosystemState(),
+    ),
+  })
+  .strict();
 type DurableCommandSnapshot = z.infer<typeof durableCommandSnapshotSchema>;
 
 const commandReceiptSchema = z
@@ -180,13 +261,21 @@ export const hostStateV3Schema = z
   })
   .strict();
 
-export type HostState = z.infer<typeof hostStateV3Schema>;
+export const hostStateV4Schema = hostStateV3Schema.extend({
+  schemaVersion: z.literal(4),
+  ecosystem: ecosystemStateSchema,
+}).strict();
+
+export type HostState = z.infer<typeof hostStateV4Schema>;
 
 export const hostStateSchema = z
-  .union([hostStateV3Schema, hostStateV2Schema, hostStateV1Schema])
+  .union([hostStateV4Schema, hostStateV3Schema, hostStateV2Schema, hostStateV1Schema])
   .transform((state): HostState => {
-    if (state.schemaVersion === 3) return state;
-    return migrateV2ToV3(state.schemaVersion === 2 ? state : migrateV1ToV2(state));
+    if (state.schemaVersion === 4) return state;
+    const v3 = state.schemaVersion === 3
+      ? state
+      : migrateV2ToV3(state.schemaVersion === 2 ? state : migrateV1ToV2(state));
+    return migrateV3ToV4(v3);
   });
 
 function migrateV1ToV2(state: z.infer<typeof hostStateV1Schema>): z.infer<typeof hostStateV2Schema> {
@@ -202,7 +291,7 @@ function migrateV1ToV2(state: z.infer<typeof hostStateV1Schema>): z.infer<typeof
   };
 }
 
-function migrateV2ToV3(state: z.infer<typeof hostStateV2Schema>): HostState {
+function migrateV2ToV3(state: z.infer<typeof hostStateV2Schema>): z.infer<typeof hostStateV3Schema> {
     const { tokenUsageWatermarks, tokenEnergy, ...legacy } = state;
     return {
       ...legacy,
@@ -213,6 +302,14 @@ function migrateV2ToV3(state: z.infer<typeof hostStateV2Schema>): HostState {
         ? {}
         : { legacyWeightedUsageWatermarks: tokenUsageWatermarks }),
     };
+}
+
+function migrateV3ToV4(state: z.infer<typeof hostStateV3Schema>): HostState {
+  return {
+    ...state,
+    schemaVersion: 4,
+    ecosystem: createInitialEcosystemState(),
+  };
 }
 
 function migrateUsageReplay(
@@ -280,6 +377,16 @@ export const commandRequestSchema = z.discriminatedUnion("type", [
   z.object({ ...commandBase, type: z.literal("pullLever"), spinId: identifier }).strict(),
   z.object({ ...commandBase, type: z.literal("settleSpin"), spinId: identifier }).strict(),
   z.object({ ...commandBase, type: z.literal("buyItem"), itemId: identifier }).strict(),
+  z.object({
+    ...commandBase,
+    type: z.literal("careHabitat"),
+    habitat: z.enum(["aquarium", "garden", "animals"]),
+  }).strict(),
+  z.object({
+    ...commandBase,
+    type: z.literal("collectHabitat"),
+    habitat: z.enum(["garden", "animals"]),
+  }).strict(),
   z
     .object({
       ...commandBase,
@@ -311,6 +418,8 @@ export type CommandErrorCode =
   | "invalid-spin-state"
   | "unknown-item"
   | "already-owned"
+  | "no-supply"
+  | "nothing-to-collect"
   | "locked-spin-reward"
   | "item-not-owned"
   | "position-occupied";

@@ -85,6 +85,17 @@ describe("SceneRenderer", () => {
     expect(lastIndex(names, "sparkle")).toBeLessThan(firstIndex(names, "status"));
   });
 
+  it("can render only the live equipment layers over a unified static workbench", () => {
+    const context = recordingContext();
+    const renderer = new SceneRenderer(context, assets, { includeSceneBase: false });
+
+    renderer.render(viewModel());
+
+    expect(context.calls.some((call) => call.name === "scene")).toBe(false);
+    expect(context.calls.filter((call) => call.name === "reel")).toHaveLength(3);
+    expect(context.calls.some((call) => call.name === "lever")).toBe(true);
+  });
+
   it("clips and restores each reel window independently", () => {
     const context = recordingContext();
     const renderer = new SceneRenderer(context, assets);

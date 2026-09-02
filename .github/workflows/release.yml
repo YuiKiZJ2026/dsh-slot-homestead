@@ -1,0 +1,68 @@
+name: GitHub prerelease
+
+on:
+  push:
+    tags:
+      - "v*-beta.*"
+
+permissions:
+  contents: write
+
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  release:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "24.15.0"
+          cache: npm
+      - run: npm install --global npm@11.9.0
+      - name: Validate tag, lockfile, metadata, and asset clearance
+        run: npm run verify:release-metadata -- --tag "$GITHUB_REF_NAME"
+      - run: npm ci --legacy-peer-deps
+      - run: npm run typecheck
+      - run: npm run build:artifacts
+      - run: npm run test:coverage
+      - run: npx playwright install --with-deps chromium
+      - run: npm run test:e2e
+      - name: Pack the already-tested build
+        run: npm pack --ignore-scripts
+      - run: npm run test:package
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 11.7.0
+      - name: Install pinned official DSH CLI
+        run: pnpm add --global @deepseek-ai/dsh@0.1.1-rc.2
+      - name: Verify install, boot, restart, persistence, and removal
+        run: node scripts/dsh-real-smoke.mjs --dsh dsh
+      - name: Build the tracked source archive
+        run: npm run build:source
+      - name: Create checksums
+        run: |
+          PACKAGE_VERSION="$(node -p "require('./package.json').version")"
+          PACKAGE_NAME="$(node -p "require('./package.json').name")"
+          PLUGIN_TGZ="${PACKAGE_NAME}-${PACKAGE_VERSION}.tgz"
+          SOURCE_ZIP="../${PACKAGE_NAME}-${PACKAGE_VERSION}-source.zip"
+          sha256sum "$PLUGIN_TGZ" "$SOURCE_ZIP" | sed 's#  ../#  #' > SHA256SUMS.txt
+          echo "PLUGIN_TGZ=$PLUGIN_TGZ" >> "$GITHUB_ENV"
+          echo "SOURCE_ZIP=$SOURCE_ZIP" >> "$GITHUB_ENV"
+      - name: Create immutable beta release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: >-
+          gh release create "$GITHUB_REF_NAME"
+          "$PLUGIN_TGZ"
+          "$SOURCE_ZIP"
+          SHA256SUMS.txt
+          --verify-tag
+          --prerelease
+          --title "$GITHUB_REF_NAME"
+          --generate-notes

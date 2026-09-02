@@ -63,6 +63,39 @@ class InjectedAdapter implements DshAdapter {
 describe("useGameController", () => {
   beforeEach(() => localStorage.clear());
 
+  it("settles offline ecosystem growth during writer initialization", async () => {
+    const repository = new StateRepository(localStorage);
+    const initial = createInitialState();
+    initial.lastAwardDate = "2026-08-26";
+    initial.ecosystem.lifecycle.lastSimulatedAt = new Date(
+      NOW.getTime() - 6 * 60 * 60 * 1_000,
+    ).toISOString();
+    repository.save(initial, 0);
+
+    const { result } = createHarness({ repository, clock: new FixedClock(NOW) });
+
+    await waitFor(() => expect(result.current.state.ecosystem.lifecycle.fish.goldfish?.growth).toBe(24));
+    expect(repository.load().ecosystem.lifecycle.fish.goldfish?.growth).toBe(24);
+  });
+
+  it("collects a ready crop only once through the local controller", async () => {
+    const repository = new StateRepository(localStorage);
+    const initial = createInitialState();
+    initial.lastAwardDate = "2026-08-26";
+    initial.ecosystem.lifecycle.lastSimulatedAt = NOW.toISOString();
+    initial.ecosystem.lifecycle.plots["1"].growth = 100;
+    initial.ecosystem.lifecycle.plots["1"].readyYield = 1;
+    repository.save(initial, 0);
+    const { result } = createHarness({ repository, clock: new FixedClock(NOW) });
+    await waitFor(() => expect(result.current.state.ecosystem.lifecycle.plots["1"].readyYield).toBe(1));
+
+    act(() => { result.current.collect("garden"); });
+    expect(result.current.state.ecosystem.lifecycle.produce.carrot).toBe(1);
+    const revision = result.current.state.revision;
+    act(() => { result.current.collect("garden"); });
+    expect(result.current.state.revision).toBe(revision);
+  });
+
   it.each([
     ["malformed JSON", "not-json"],
     ["schema-invalid JSON", JSON.stringify({ ...createInitialState(), wallet: -1 })],
@@ -217,7 +250,7 @@ describe("useGameController", () => {
 
     expect(result.current.state).toMatchObject({
       wallet: 20,
-      revision: 1,
+      revision: 2,
       ownedCollectibles: [],
       activeSpin: {
         id: "spin-locked-plant",

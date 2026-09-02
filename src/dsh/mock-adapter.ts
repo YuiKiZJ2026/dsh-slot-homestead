@@ -2,7 +2,7 @@
 
 import type { AgentStatus } from "../domain/types";
 import type { OutcomeKind } from "../game/outcomes";
-import { FixedClock } from "../time/clock";
+import type { AdjustableClock } from "../time/clock";
 import type { DshAdapter } from "./adapter";
 import type { DshDemoControls } from "./demo-controls";
 import { developmentOutcomeOverridesEnabled } from "./dev-outcome-gate";
@@ -16,7 +16,7 @@ export class MockDshAdapter implements DshAdapter, DshDemoControls {
   private readonly outcomeOverridesEnabled: boolean;
 
   constructor(
-    private readonly clock: FixedClock,
+    private readonly clock: AdjustableClock,
     private readonly createId: () => string,
     requestDevelopmentOverrides = true,
   ) {

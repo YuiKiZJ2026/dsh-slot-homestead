@@ -1,44 +1,66 @@
 import { useCallback, useEffect, useState, type CSSProperties } from "react";
 import { CollectionPanel } from "../../components/CollectionPanel";
+import { DaylightStatus } from "../../components/DaylightStatus";
+import { EcosystemScene, type EcosystemAssetUrls } from "../../components/EcosystemScene";
 import { GameCanvas } from "../../components/GameCanvas";
+import { NightSky } from "../../components/NightSky";
 import { SettingsPanel, useDoubleScaleAvailability } from "../../components/SettingsPanel";
 import { ShopPanel } from "../../components/ShopPanel";
+import { SpinResultCard } from "../../components/SpinResultCard";
+import { WorkbenchCommandBar, WorkbenchToolTray, type WorkbenchUtilityPanel } from "../../components/WorkbenchCommandBar";
+import type { ResolvedSpin } from "../../domain/types";
 import { hasStarryNightTheme } from "../../inventory/inventory";
+import { SystemClock, type Clock } from "../../time/clock";
+import { useDayPhase } from "../../time/use-day-phase";
+import { CONTROL_DECK_RENDER_HEIGHT, WIDGET_RENDER_HEIGHT, WIDGET_RENDER_WIDTH } from "../../ui/widget-layout";
 import { loadSceneAssets, type SceneAssets, type SceneAssetUrls } from "../../game/renderer/assets";
 import type { GameApi } from "./api";
 import { TokenEnergyMeter } from "./TokenEnergyMeter";
 import { useHostGameController } from "./use-host-game-controller";
 
-type UtilityPanel = "collection" | "shop" | "settings";
-const COMPANION_BASE_WIDTH = 336;
-const COMPANION_COMPACT_HEIGHT = 330;
-const COMPANION_PANEL_HEIGHT = 414;
+type UtilityPanel = WorkbenchUtilityPanel;
+const COMPANION_BASE_WIDTH = 560;
+const COMPANION_COMPACT_HEIGHT = 384;
+const COMPANION_PANEL_HEIGHT = 496;
 const MIN_COMPANION_SCALE = 0.75;
 const MAX_COMPANION_SCALE = 1.6;
+const DEFAULT_LIGHTING_CLOCK = new SystemClock();
 
 export interface PluginAppProps {
   api: GameApi;
   sessionId: string;
   assetUrls: SceneAssetUrls;
+  ecosystemAssetUrls?: EcosystemAssetUrls;
   loadAssets?: () => Promise<SceneAssets>;
   displayMode?: "page" | "overlay" | "companion";
+  lightingClock?: Clock;
+  refreshToken?: number;
 }
 
 export function PluginApp({
   api,
   sessionId,
   assetUrls,
+  ecosystemAssetUrls,
   loadAssets,
   displayMode = "page",
+  lightingClock = DEFAULT_LIGHTING_CLOCK,
+  refreshToken = 0,
 }: PluginAppProps) {
   const controller = useHostGameController({ api, sessionId });
+  useEffect(() => {
+    if (refreshToken > 0) void controller.refresh();
+  }, [controller.refresh, refreshToken]);
+  const dayPhase = useDayPhase(lightingClock);
   const [utilityPanel, setUtilityPanel] = useState<UtilityPanel | null>(null);
+  const [lastSpinResult, setLastSpinResult] = useState<ResolvedSpin | null>(null);
   const [companionViewport, setCompanionViewport] = useState(() => ({
     width: window.innerWidth,
     height: window.innerHeight,
   }));
   const doubleScaleAvailable = useDoubleScaleAvailability();
-  const companionBaseHeight = utilityPanel === null
+  const detailOpen = utilityPanel !== null || lastSpinResult !== null;
+  const companionBaseHeight = !detailOpen
     ? COMPANION_COMPACT_HEIGHT
     : COMPANION_PANEL_HEIGHT;
   const companionScale = clampCompanionScale(Math.min(
@@ -46,12 +68,13 @@ export function PluginApp({
     companionViewport.height / companionBaseHeight,
   ));
   const scale = displayMode === "companion"
-    ? utilityPanel === null ? 0.7 : 0.64
+    ? !detailOpen ? 0.86 : 0.84
     : controller.gameState.settings.scale === 2 && doubleScaleAvailable ? 2 : 1;
   const rootStyle = {
     "--widget-scale": scale,
-    "--widget-width": `${384 * scale}px`,
-    "--widget-height": `${288 * scale}px`,
+    "--widget-width": `${WIDGET_RENDER_WIDTH * scale}px`,
+    "--widget-height": `${WIDGET_RENDER_HEIGHT * scale}px`,
+    "--control-deck-height": `${CONTROL_DECK_RENDER_HEIGHT * scale}px`,
     "--companion-scale": companionScale,
     "--companion-base-height": `${companionBaseHeight}px`,
   } as CSSProperties;
@@ -64,6 +87,7 @@ export function PluginApp({
     ? 0
     : snapshot.tokenEnergy.dailyCoins[snapshot.localDate] ?? 0;
   const toggleUtilityPanel = (panel: UtilityPanel): void => {
+    setLastSpinResult(null);
     setUtilityPanel((current) => current === panel ? null : panel);
   };
   useEffect(() => {
@@ -95,15 +119,15 @@ export function PluginApp({
   ]);
   useEffect(() => {
     if (displayMode !== "companion") return;
-    const nextHash = utilityPanel === null ? "#compact" : "#panel";
+    const nextHash = !detailOpen ? "#compact" : "#panel";
     if (window.location.hash !== nextHash) window.location.hash = nextHash;
-  }, [displayMode, utilityPanel]);
+  }, [detailOpen, displayMode]);
   const rootClass = [
     "dsh-slot-widget-root",
     "desktop",
     displayMode === "overlay" ? "desktop--overlay" : "desktop--page",
     displayMode === "companion" ? "desktop--companion" : "",
-    utilityPanel === null ? "" : "has-utility-panel",
+    detailOpen ? "has-utility-panel" : "",
     hasStarryNightTheme(controller.gameState) ? "desktop--starry" : "",
   ].filter(Boolean).join(" ");
 
@@ -114,12 +138,14 @@ export function PluginApp({
       role="application"
       aria-label="DSH 桌面老虎机"
       data-display-mode={displayMode}
+      data-day-phase={dayPhase}
     >
       {displayMode === "companion" ? (
         <button type="button" className="edge-reveal-tab" aria-label="展开老虎机">◆</button>
       ) : null}
       <div className={displayMode === "companion" ? "companion-scale-surface" : "plugin-content-surface"}>
       <div className="desktop__ambient" aria-hidden="true" />
+      {displayMode === "page" ? <DaylightStatus phase={dayPhase} /> : null}
       <section className="host-status" role="region" aria-label="Host 游戏状态" aria-live="polite">
         <div className="wallet-status">
           <span>钱包</span>
@@ -136,24 +162,59 @@ export function PluginApp({
         ) : null}
       </section>
 
-      <nav className="widget-launchers" aria-label="老虎机工具">
-        <button type="button" className="pixel-button" aria-expanded={utilityPanel === "collection"} onClick={() => toggleUtilityPanel("collection")}>{displayMode === "companion" ? "收藏" : "打开收藏盒"}</button>
-        <button type="button" className="pixel-button" aria-expanded={utilityPanel === "shop"} onClick={() => toggleUtilityPanel("shop")}>{displayMode === "companion" ? "商店" : "打开商店"}</button>
-        <button type="button" className="pixel-button" aria-expanded={utilityPanel === "settings"} onClick={() => toggleUtilityPanel("settings")}>{displayMode === "companion" ? "设置" : "打开设置"}</button>
-      </nav>
-
       <div className="plugin-game-layout">
         <div className="slot-widget-frame">
-          <section className="slot-widget" data-scale={scale} aria-label="老虎机微缩场景">
+          <section
+            className="ecosystem-widget"
+            data-scale={scale}
+            data-composition="single-workbench-v3"
+            aria-label="老虎机与养成生态"
+          >
+            <EcosystemScene
+              state={controller.gameState}
+              dayPhase={dayPhase}
+              onCare={(habitat) => { void controller.care(habitat); }}
+              onCollect={(habitat) => { void controller.collect(habitat); }}
+              mutationsDisabled={controller.mutationsDisabled}
+              assetUrls={ecosystemAssetUrls}
+              nightSky={displayMode === "page" ? (
+                <>
+                  <NightSky />
+                  <span
+                    className="ecosystem-widget__moonlight"
+                    data-night-moonlight="workbench"
+                    aria-hidden="true"
+                  />
+                </>
+              ) : null}
+              commandBar={(
+                <WorkbenchCommandBar
+                  state={controller.gameState}
+                  tokenProgress={snapshot?.tokenEnergy.progress}
+                />
+              )}
+            />
+            <div className="slot-widget" aria-label="老虎机微缩场景">
             <GameCanvas
               state={controller.gameState}
               mode={controller.mutationsDisabled ? "readonly" : "writer"}
               error={controller.error}
-              onPlay={() => { void controller.play(); }}
+              onPlay={() => {
+                setLastSpinResult(null);
+                void controller.play();
+              }}
               onSetPlacement={(itemId, positionId) => { void controller.setPlacement(itemId, positionId); }}
+              onSettledResult={setLastSpinResult}
               onAnimationEvent={(event) => { void controller.advanceAnimation(event); }}
               loadAssets={loadExplicitAssets}
+              includeSceneBase={false}
             />
+            <WorkbenchToolTray
+              activePanel={utilityPanel}
+              compactLabels={displayMode === "companion"}
+              onToggle={toggleUtilityPanel}
+            />
+            </div>
           </section>
         </div>
         <div className="utility-panel-slot">
@@ -181,6 +242,15 @@ export function PluginApp({
             allowDoubleScale={doubleScaleAvailable}
             mutationsDisabled={controller.mutationsDisabled}
           />
+          {utilityPanel === null && lastSpinResult !== null ? (
+            <SpinResultCard
+              spin={lastSpinResult}
+              state={controller.gameState}
+              onDismiss={() => setLastSpinResult(null)}
+              onPlace={(itemId, positionId) => { void controller.setPlacement(itemId, positionId); }}
+              collectiblesUrl={assetUrls.collectibles}
+            />
+          ) : null}
         </div>
       </div>
       </div>

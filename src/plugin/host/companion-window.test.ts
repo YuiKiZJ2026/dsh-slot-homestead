@@ -146,10 +146,10 @@ describe("companion window docking", () => {
       }) as unknown as ElectronLike,
     });
 
-    expect(fake.bounds.width).toBe(420);
+    expect(fake.bounds.width).toBe(700);
     expect(fake.bounds.height).toBe(413);
     fake.emitNavigation("file:///companion/index.html#panel");
-    expect(fake.bounds.width).toBe(420);
+    expect(fake.bounds.width).toBe(700);
     expect(fake.bounds.height).toBe(518);
     handle?.dispose();
   });

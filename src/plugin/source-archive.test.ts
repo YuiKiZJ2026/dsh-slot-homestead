@@ -15,6 +15,7 @@ const root = process.cwd();
 const read = (path: string): string => readFileSync(resolve(root, path), "utf8");
 
 const REQUIRED = [
+  "ASSETS.md",
   "LICENSE",
   "README.md",
   "cordis.patch.yml",

@@ -1,0 +1,211 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="800" height="600" viewBox="0 0 800 600" shape-rendering="crispEdges" data-native-facing="right" aria-label="Three fish species across four growth stages, all facing right">
+  <style>
+    .px-outline{stroke:#3a1d17;stroke-width:7;stroke-linejoin:miter;stroke-linecap:square}
+    .px-outline-sm{stroke:#4a2419;stroke-width:5;stroke-linejoin:miter;stroke-linecap:square}
+    .detail{fill:none;stroke:#7a321d;stroke-width:4;stroke-linecap:square}
+    .ink{fill:#241719}.eye{fill:#171217}.spark{fill:#fff1bd}
+    .g-deep{fill:#8b361c}.g-shadow{fill:#bd491c}.g-mid{fill:#ed7020}.g-gold{fill:#f5a42b}.g-light{fill:#ffd362}
+    .c-deep{fill:#74301f}.c-mid{fill:#d95727}.c-orange{fill:#f07a2b}.c-light{fill:#ffb342}.c-cream{fill:#ffe2a1}
+    .m-deep{fill:#183743}.m-shadow{fill:#285362}.m-mid{fill:#3c7680}.m-light{fill:#6fadb0}.m-moon{fill:#f4d78b}.m-gold{fill:#d9962d}
+  </style>
+
+  <!-- Row 1: goldfish. Bright warm bodies, round heads and increasingly flowing fins. -->
+  <g transform="translate(0 0)" data-species="goldfish" data-stage="fry" data-native-facing="right">
+    <path class="g-mid px-outline-sm" data-role="tail" d="M72 92L52 80H44V96H50V104H44V122H52L72 110Z"/>
+    <path class="g-gold px-outline-sm" data-role="dorsal-fin" d="M86 84V76H94V68H102L114 84Z"/>
+    <path class="g-mid px-outline" data-role="body" d="M70 88H84V80H116V84H130V92H138V112H130V120H114V124H84V120H70V112H62V96H70Z"/>
+    <path class="g-shadow" data-role="belly-shade" d="M70 106H82V114H116V110H132V116H120V122H84V118H70Z"/>
+    <path class="g-light" data-role="body-highlight" d="M82 84H112V88H124V92H88V96H78V88H82Z"/>
+    <path class="g-gold px-outline-sm" data-role="pectoral-fin" d="M103 107H116L104 125H94V117Z"/>
+    <path class="detail" data-role="gill" d="M117 98V112"/>
+    <rect class="eye" data-role="eye" x="123" y="91" width="10" height="10"/>
+    <rect class="spark" data-role="eye-highlight" x="125" y="91" width="4" height="4"/>
+    <rect class="g-light" data-role="mouth" x="136" y="104" width="7" height="5"/>
+    <rect class="g-deep" data-role="tail-detail" x="54" y="98" width="15" height="5"/>
+  </g>
+
+  <g transform="translate(200 0)" data-species="goldfish" data-stage="juvenile" data-native-facing="right">
+    <path class="g-mid px-outline" data-role="tail" d="M64 87L40 67H30V91H38V105H30V137H40L66 117Z"/>
+    <path class="g-light px-outline-sm" data-role="tail-highlight" d="M61 93L42 81V96H50V108H42V123L62 113Z"/>
+    <path class="g-gold px-outline-sm" data-role="dorsal-fin" d="M82 76V66H90V56H100V50H108V58H118V66H132V78Z"/>
+    <path class="g-mid px-outline" data-role="body" d="M66 80H82V72H124V76H142V84H154V92H160V114H154V124H142V132H122V138H82V134H66V126H58V90H66Z"/>
+    <path class="g-shadow" data-role="belly-shade" d="M62 109H78V122H94V128H126V124H146V118H156V124H144V132H124V136H82V132H66V124H62Z"/>
+    <path class="g-gold" data-role="face" d="M132 82H146V88H156V96H160V114H152V122H136V116H130V90Z"/>
+    <path class="g-light" data-role="body-highlight" d="M76 78H118V82H136V88H98V94H76Z"/>
+    <path class="g-gold px-outline-sm" data-role="pectoral-fin" d="M105 108H122L111 134H98V122Z"/>
+    <path class="g-shadow px-outline-sm" data-role="pelvic-fin" d="M80 126H96L88 145H76Z"/>
+    <path class="detail" data-role="gill" d="M134 96V116"/>
+    <rect class="eye" data-role="eye" x="145" y="91" width="11" height="11"/>
+    <rect class="spark" data-role="eye-highlight" x="148" y="91" width="4" height="4"/>
+    <rect class="g-light" data-role="mouth" x="157" y="108" width="8" height="6"/>
+    <path class="g-deep" data-role="tail-detail" d="M41 95H64V102H48V109H64V115H41Z"/>
+  </g>
+
+  <g transform="translate(400 0)" data-species="goldfish" data-stage="young" data-native-facing="right">
+    <path class="g-shadow px-outline" data-role="tail" d="M59 82L30 54H18V87H28V101H18V149H30L62 121Z"/>
+    <path class="g-gold px-outline-sm" data-role="tail-highlight" d="M57 91L33 72V93H43V107H33V132L58 115Z"/>
+    <path class="g-gold px-outline-sm" data-role="dorsal-fin" d="M70 73V61H80V49H90V41H100V53H112V45H122V57H134V73Z"/>
+    <path class="g-mid px-outline" data-role="body" d="M58 74H76V66H126V70H146V78H158V88H166V116H158V126H146V136H124V142H78V138H58V130H48V118H42V90H50V80H58Z"/>
+    <path class="g-shadow" data-role="belly-shade" d="M47 109H63V123H79V132H98V137H128V132H148V124H160V128H148V137H126V141H78V137H58V129H49Z"/>
+    <path class="g-gold" data-role="face" d="M136 76H150V82H160V92H166V116H158V126H144V132H134V118H128V88Z"/>
+    <path class="g-light" data-role="body-highlight" d="M70 70H120V74H142V80H150V86H108V92H80V88H62V78H70Z"/>
+    <path class="g-gold px-outline-sm" data-role="pectoral-fin" d="M108 109H128L118 139H103L96 128Z"/>
+    <path class="g-shadow px-outline-sm" data-role="pelvic-fin" d="M73 133H94L84 156H66Z"/>
+    <path class="detail" data-role="gill" d="M139 94V120"/>
+    <rect class="eye" data-role="eye" x="150" y="87" width="12" height="12"/>
+    <rect class="spark" data-role="eye-highlight" x="153" y="87" width="4" height="4"/>
+    <rect class="g-light" data-role="mouth" x="163" y="108" width="8" height="7"/>
+    <path class="g-deep" data-role="tail-detail" d="M29 83H58V91H40V101H58V109H39V120H58V127H29Z"/>
+  </g>
+
+  <g transform="translate(600 0)" data-species="goldfish" data-stage="adult" data-native-facing="right">
+    <path class="g-shadow px-outline" data-role="tail" d="M56 78L28 42H14V75H24V91H10V158H24L60 124Z"/>
+    <path class="g-mid px-outline-sm" data-role="tail-lobe" d="M54 87L28 60V84H38V98H25V138L57 117Z"/>
+    <path class="g-light px-outline-sm" data-role="tail-highlight" d="M53 96L34 82V101H45V111H34V128L54 114Z"/>
+    <path class="g-gold px-outline-sm" data-role="dorsal-fin" d="M62 68V56H72V42H84V32H94V48H106V37H118V50H132V64H144V72Z"/>
+    <path class="g-mid px-outline" data-role="body" d="M52 68H72V60H128V64H150V72H164V82H174V94H180V118H174V130H164V140H148V148H124V154H74V150H54V142H42V130H34V90H42V78H52Z"/>
+    <path class="g-shadow" data-role="belly-shade" d="M38 111H54V127H70V138H90V146H128V141H152V132H169V139H151V148H125V152H73V148H53V140H42V130H38Z"/>
+    <path class="g-gold" data-role="face" d="M140 70H156V77H168V87H176V97H180V118H174V130H163V140H145V134H136V84Z"/>
+    <path class="g-light" data-role="body-highlight" d="M65 64H122V68H147V74H160V82H167V88H120V94H82V88H58V76H65Z"/>
+    <path class="g-gold px-outline-sm" data-role="pectoral-fin" d="M113 112H136L124 149H105L96 134Z"/>
+    <path class="g-shadow px-outline-sm" data-role="pelvic-fin" d="M74 143H100L87 172H65Z"/>
+    <path class="detail" data-role="gill" d="M146 90V125"/>
+    <rect class="eye" data-role="eye" x="162" y="83" width="13" height="13"/>
+    <rect class="spark" data-role="eye-highlight" x="165" y="83" width="5" height="5"/>
+    <rect class="g-light" data-role="mouth" x="176" y="110" width="9" height="7"/>
+    <path class="g-deep" data-role="tail-detail" d="M23 76H56V85H36V97H55V106H34V120H55V128H32V140H23Z"/>
+    <rect class="g-light" data-role="scale-glint" x="78" y="80" width="10" height="8"/>
+    <rect class="g-light" data-role="scale-glint" x="94" y="96" width="9" height="7"/>
+  </g>
+
+  <!-- Row 2: clownfish. Cream bands follow a warm orange body rather than reading as flat stripes. -->
+  <g transform="translate(0 200)" data-species="clownfish" data-stage="fry" data-native-facing="right">
+    <path class="c-mid px-outline-sm" data-role="tail" d="M71 92L50 80H43V96H49V105H43V122H51L72 110Z"/>
+    <path class="c-deep px-outline-sm" data-role="dorsal-fin" d="M85 84V75H95V68H105L116 84Z"/>
+    <path class="c-orange px-outline" data-role="body" d="M69 88H83V80H116V84H130V92H138V112H130V120H114V124H83V120H69V112H61V96H69Z"/>
+    <path class="c-cream" data-role="band-rear" d="M79 82H91V122H79V118H72V110H68V96H73V88H79Z"/>
+    <path class="c-cream" data-role="band-front" d="M111 83H121V88H127V116H121V120H111Z"/>
+    <path class="c-light px-outline-sm" data-role="pectoral-fin" d="M101 108H114L104 125H94V117Z"/>
+    <rect class="eye" data-role="eye" x="124" y="91" width="10" height="10"/>
+    <rect class="spark" data-role="eye-highlight" x="126" y="91" width="4" height="4"/>
+    <path class="detail" data-role="gill" d="M117 98V113"/>
+    <rect class="c-cream" data-role="mouth" x="136" y="104" width="7" height="5"/>
+  </g>
+
+  <g transform="translate(200 200)" data-species="clownfish" data-stage="juvenile" data-native-facing="right">
+    <path class="c-mid px-outline" data-role="tail" d="M64 87L38 68H29V92H37V106H29V137H39L66 117Z"/>
+    <path class="c-light px-outline-sm" data-role="tail-highlight" d="M61 94L42 82V99H49V108H42V124L62 113Z"/>
+    <path class="c-deep px-outline-sm" data-role="dorsal-fin" d="M80 76V65H90V55H100V50H109V60H121V68H134V78Z"/>
+    <path class="c-orange px-outline" data-role="body" d="M65 80H82V72H124V76H142V84H154V92H160V114H154V124H142V132H122V138H82V134H65V126H57V90H65Z"/>
+    <path class="c-mid" data-role="belly-shade" d="M61 109H78V123H96V130H126V126H148V119H157V125H144V133H123V136H81V132H66V125H61Z"/>
+    <path class="c-cream" data-role="band-rear" d="M76 74H92V134H80V131H70V123H65V89H70V80H76Z"/>
+    <path class="c-cream" data-role="band-front" d="M121 75H136V81H144V88H148V121H141V128H130V132H120Z"/>
+    <path class="c-light px-outline-sm" data-role="pectoral-fin" d="M102 108H120L109 135H96V122Z"/>
+    <path class="c-mid px-outline-sm" data-role="pelvic-fin" d="M82 127H98L89 145H76Z"/>
+    <rect class="eye" data-role="eye" x="145" y="91" width="11" height="11"/>
+    <rect class="spark" data-role="eye-highlight" x="148" y="91" width="4" height="4"/>
+    <path class="detail" data-role="gill" d="M136 96V116"/>
+    <rect class="c-cream" data-role="mouth" x="157" y="108" width="8" height="6"/>
+  </g>
+
+  <g transform="translate(400 200)" data-species="clownfish" data-stage="young" data-native-facing="right">
+    <path class="c-deep px-outline" data-role="tail" d="M59 82L29 55H17V87H27V102H17V149H30L62 121Z"/>
+    <path class="c-orange px-outline-sm" data-role="tail-highlight" d="M57 91L33 72V94H42V107H33V132L58 115Z"/>
+    <path class="c-deep px-outline-sm" data-role="dorsal-fin" d="M69 73V61H80V49H91V42H101V53H114V46H124V59H136V75Z"/>
+    <path class="c-orange px-outline" data-role="body" d="M57 74H76V66H126V70H146V78H158V88H166V116H158V126H146V136H124V142H78V138H57V130H47V118H41V90H49V80H57Z"/>
+    <path class="c-mid" data-role="belly-shade" d="M46 109H63V123H80V132H100V137H128V132H149V124H161V129H148V137H125V140H77V136H58V129H49Z"/>
+    <path class="c-cream" data-role="band-rear" d="M70 68H90V138H77V135H64V128H56V118H50V89H57V78H70Z"/>
+    <path class="c-cream" data-role="band-front" d="M121 69H141V75H151V83H157V91H160V119H153V128H143V135H126V139H120Z"/>
+    <path class="c-light px-outline-sm" data-role="pectoral-fin" d="M105 109H127L116 140H100L94 128Z"/>
+    <path class="c-mid px-outline-sm" data-role="pelvic-fin" d="M75 133H96L85 156H67Z"/>
+    <rect class="eye" data-role="eye" x="150" y="87" width="12" height="12"/>
+    <rect class="spark" data-role="eye-highlight" x="153" y="87" width="4" height="4"/>
+    <path class="detail" data-role="gill" d="M142 94V120"/>
+    <rect class="c-cream" data-role="mouth" x="163" y="108" width="8" height="7"/>
+  </g>
+
+  <g transform="translate(600 200)" data-species="clownfish" data-stage="adult" data-native-facing="right">
+    <path class="c-deep px-outline" data-role="tail" d="M56 78L28 43H13V76H23V92H10V158H24L60 124Z"/>
+    <path class="c-mid px-outline-sm" data-role="tail-lobe" d="M54 87L29 60V85H38V99H25V138L57 117Z"/>
+    <path class="c-light px-outline-sm" data-role="tail-highlight" d="M53 96L35 82V101H45V111H35V128L54 114Z"/>
+    <path class="c-deep px-outline-sm" data-role="dorsal-fin" d="M61 68V56H72V42H84V33H95V48H107V38H119V51H133V64H145V72Z"/>
+    <path class="c-orange px-outline" data-role="body" d="M51 68H72V60H128V64H150V72H164V82H174V94H180V118H174V130H164V140H148V148H124V154H74V150H53V142H41V130H33V90H41V78H51Z"/>
+    <path class="c-mid" data-role="belly-shade" d="M37 111H54V127H71V138H91V146H128V141H153V132H169V139H151V148H125V152H73V148H53V140H42V130H37Z"/>
+    <path class="c-cream" data-role="band-rear" d="M64 62H88V151H74V147H61V141H52V132H45V120H39V89H45V77H54V69H64Z"/>
+    <path class="c-cream" data-role="band-front" d="M124 63H148V70H159V78H168V88H174V96H177V120H171V131H162V140H149V147H129V151H123Z"/>
+    <path class="c-light px-outline-sm" data-role="pectoral-fin" d="M110 112H135L123 149H104L95 134Z"/>
+    <path class="c-mid px-outline-sm" data-role="pelvic-fin" d="M74 143H100L87 172H65Z"/>
+    <rect class="eye" data-role="eye" x="162" y="83" width="13" height="13"/>
+    <rect class="spark" data-role="eye-highlight" x="165" y="83" width="5" height="5"/>
+    <path class="detail" data-role="gill" d="M149 90V125"/>
+    <rect class="c-cream" data-role="mouth" x="176" y="110" width="9" height="7"/>
+    <rect class="c-light" data-role="scale-glint" x="96" y="82" width="9" height="7"/>
+  </g>
+
+  <!-- Row 3: moon carp. Deep teal bodies carry crescent-gold markings and pale fins. -->
+  <g transform="translate(0 400)" data-species="moon-carp" data-stage="fry" data-native-facing="right">
+    <path class="m-shadow px-outline-sm" data-role="tail" d="M72 92L51 79H43V96H49V105H43V123H51L72 110Z"/>
+    <path class="m-moon px-outline-sm" data-role="dorsal-fin" d="M86 84V76H94V68H103L116 84Z"/>
+    <path class="m-mid px-outline" data-role="body" d="M69 88H84V80H116V84H130V92H138V112H130V120H114V124H84V120H69V112H61V96H69Z"/>
+    <path class="m-deep" data-role="belly-shade" d="M68 106H83V114H116V110H132V116H120V122H83V118H68Z"/>
+    <path class="m-light" data-role="body-highlight" d="M81 84H109V88H121V92H87V96H77V88H81Z"/>
+    <path class="m-gold" data-role="moon-mark" d="M104 89H112V94H108V102H112V108H103V103H99V94H104Z"/>
+    <path class="m-moon px-outline-sm" data-role="pectoral-fin" d="M101 108H115L104 125H94V117Z"/>
+    <rect class="eye" data-role="eye" x="124" y="91" width="10" height="10"/>
+    <rect class="spark" data-role="eye-highlight" x="126" y="91" width="4" height="4"/>
+    <path class="detail" data-role="gill" d="M118 98V113"/>
+    <rect class="m-moon" data-role="mouth" x="136" y="104" width="7" height="5"/>
+  </g>
+
+  <g transform="translate(200 400)" data-species="moon-carp" data-stage="juvenile" data-native-facing="right">
+    <path class="m-shadow px-outline" data-role="tail" d="M64 87L39 67H29V92H37V106H29V138H39L66 117Z"/>
+    <path class="m-moon px-outline-sm" data-role="tail-highlight" d="M61 94L42 82V99H49V108H42V124L62 113Z"/>
+    <path class="m-moon px-outline-sm" data-role="dorsal-fin" d="M81 76V65H90V55H100V50H109V60H121V68H134V78Z"/>
+    <path class="m-mid px-outline" data-role="body" d="M65 80H82V72H124V76H142V84H154V92H160V114H154V124H142V132H122V138H82V134H65V126H57V90H65Z"/>
+    <path class="m-deep" data-role="belly-shade" d="M61 109H78V123H96V130H126V126H148V119H157V125H144V133H123V136H81V132H66V125H61Z"/>
+    <path class="m-light" data-role="body-highlight" d="M75 78H116V82H136V88H97V94H75Z"/>
+    <path class="m-gold" data-role="moon-mark" d="M112 84H124V91H118V99H114V109H120V116H110V111H104V104H102V94H106V88H112Z"/>
+    <path class="m-moon px-outline-sm" data-role="pectoral-fin" d="M101 108H120L109 135H96V122Z"/>
+    <path class="m-shadow px-outline-sm" data-role="pelvic-fin" d="M81 127H98L89 145H76Z"/>
+    <rect class="eye" data-role="eye" x="145" y="91" width="11" height="11"/>
+    <rect class="spark" data-role="eye-highlight" x="148" y="91" width="4" height="4"/>
+    <path class="detail" data-role="gill" d="M137 96V116"/>
+    <rect class="m-moon" data-role="mouth" x="157" y="108" width="8" height="6"/>
+  </g>
+
+  <g transform="translate(400 400)" data-species="moon-carp" data-stage="young" data-native-facing="right">
+    <path class="m-deep px-outline" data-role="tail" d="M59 82L29 54H17V87H27V102H17V149H30L62 121Z"/>
+    <path class="m-moon px-outline-sm" data-role="tail-highlight" d="M57 91L33 72V94H42V107H33V132L58 115Z"/>
+    <path class="m-moon px-outline-sm" data-role="dorsal-fin" d="M69 73V61H80V49H91V42H101V53H114V46H124V59H136V75Z"/>
+    <path class="m-mid px-outline" data-role="body" d="M57 74H76V66H126V70H146V78H158V88H166V116H158V126H146V136H124V142H78V138H57V130H47V118H41V90H49V80H57Z"/>
+    <path class="m-deep" data-role="belly-shade" d="M46 109H63V123H80V132H100V137H128V132H149V124H161V129H148V137H125V140H77V136H58V129H49Z"/>
+    <path class="m-light" data-role="body-highlight" d="M69 70H119V74H142V80H151V86H108V92H80V88H61V78H69Z"/>
+    <path class="m-gold" data-role="moon-mark" d="M116 76H132V84H125V92H120V105H124V115H134V123H119V118H110V110H106V93H110V83H116Z"/>
+    <path class="m-moon px-outline-sm" data-role="pectoral-fin" d="M104 109H127L116 140H100L94 128Z"/>
+    <path class="m-shadow px-outline-sm" data-role="pelvic-fin" d="M75 133H96L85 156H67Z"/>
+    <rect class="eye" data-role="eye" x="150" y="87" width="12" height="12"/>
+    <rect class="spark" data-role="eye-highlight" x="153" y="87" width="4" height="4"/>
+    <path class="detail" data-role="gill" d="M143 94V120"/>
+    <rect class="m-moon" data-role="mouth" x="163" y="108" width="8" height="7"/>
+    <rect class="m-gold" data-role="scale-glint" x="81" y="83" width="8" height="7"/>
+  </g>
+
+  <g transform="translate(600 400)" data-species="moon-carp" data-stage="adult" data-native-facing="right">
+    <path class="m-deep px-outline" data-role="tail" d="M56 78L28 42H13V76H23V92H10V158H24L60 124Z"/>
+    <path class="m-shadow px-outline-sm" data-role="tail-lobe" d="M54 87L29 60V85H38V99H25V138L57 117Z"/>
+    <path class="m-moon px-outline-sm" data-role="tail-highlight" d="M53 96L35 82V101H45V111H35V128L54 114Z"/>
+    <path class="m-moon px-outline-sm" data-role="dorsal-fin" d="M61 68V56H72V42H84V33H95V48H107V38H119V51H133V64H145V72Z"/>
+    <path class="m-mid px-outline" data-role="body" d="M51 68H72V60H128V64H150V72H164V82H174V94H180V118H174V130H164V140H148V148H124V154H74V150H53V142H41V130H33V90H41V78H51Z"/>
+    <path class="m-deep" data-role="belly-shade" d="M37 111H54V127H71V138H91V146H128V141H153V132H169V139H151V148H125V152H73V148H53V140H42V130H37Z"/>
+    <path class="m-light" data-role="body-highlight" d="M64 64H122V68H147V74H160V82H168V88H120V94H82V88H58V76H64Z"/>
+    <path class="m-gold" data-role="moon-mark" d="M120 70H140V79H132V87H126V102H130V116H138V126H146V134H128V129H118V121H111V111H107V92H112V80H120Z"/>
+    <path class="m-moon px-outline-sm" data-role="pectoral-fin" d="M109 112H135L123 149H104L95 134Z"/>
+    <path class="m-shadow px-outline-sm" data-role="pelvic-fin" d="M74 143H100L87 172H65Z"/>
+    <rect class="eye" data-role="eye" x="162" y="83" width="13" height="13"/>
+    <rect class="spark" data-role="eye-highlight" x="165" y="83" width="5" height="5"/>
+    <path class="detail" data-role="gill" d="M150 90V125"/>
+    <rect class="m-moon" data-role="mouth" x="176" y="110" width="9" height="7"/>
+    <rect class="m-gold" data-role="scale-glint" x="81" y="81" width="10" height="8"/>
+    <rect class="m-moon" data-role="scale-glint" x="96" y="99" width="9" height="7"/>
+  </g>
+</svg>

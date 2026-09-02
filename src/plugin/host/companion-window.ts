@@ -120,7 +120,7 @@ export interface CompanionWindowOptions {
   readonly moveDebounceMs?: number;
 }
 
-const WINDOW_WIDTH = 336;
+const WINDOW_WIDTH = 560;
 const COMPACT_WINDOW_HEIGHT = 330;
 const PANEL_WINDOW_HEIGHT = 414;
 const MIN_WINDOW_SCALE = 0.75;

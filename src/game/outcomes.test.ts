@@ -69,6 +69,75 @@ describe("paid spin resolution", () => {
     expect(result.spin.pityAfter).toBe(5);
   });
 
+  it("can award a new ecosystem resident from an ordinary common spin", () => {
+    const state = createInitialState();
+    state.wallet = 1;
+
+    const result = createPaidSpin(state, sequence(0.8, 0.79), now, () => "spin-ecosystem");
+
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.spin.reward).toEqual({
+      kind: "ecosystem-item",
+      itemId: "moon-carp",
+      isDuplicate: false,
+      conversionCoins: 0,
+    });
+    expect(result.spin.pityAfter).toBe(0);
+  });
+
+  it("locks the duplicate conversion value into an ecosystem reward", () => {
+    const state = createInitialState();
+    state.wallet = 1;
+
+    const result = createPaidSpin(state, sequence(0.8, 0.75), now, () => "spin-ecosystem-duplicate");
+
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.spin.reward).toEqual({
+      kind: "ecosystem-item",
+      itemId: "goldfish",
+      isDuplicate: true,
+      conversionCoins: 3,
+    });
+    expect(result.spin.pityAfter).toBe(1);
+  });
+
+  it("treats a supply as consumable progress instead of a new collection", () => {
+    const state = createInitialState();
+    state.wallet = 1;
+    state.pityMisses = 6;
+
+    const result = createPaidSpin(state, sequence(0.8, 0.96), now, () => "spin-fish-feed");
+
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.spin.reward).toEqual({
+      kind: "ecosystem-item",
+      itemId: "fish-feed",
+      isDuplicate: false,
+      conversionCoins: 0,
+    });
+    expect(result.spin.pityAfter).toBe(7);
+  });
+
+  it("preserves pity progress when the awarded supply is already at capacity", () => {
+    const state = createInitialState();
+    state.wallet = 1;
+    state.pityMisses = 9;
+    state.ecosystem.supplies.fishFeed = 999;
+
+    const result = createPaidSpin(state, sequence(0.8, 0.96), now, () => "spin-full-feed");
+
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.spin.reward).toMatchObject({
+      kind: "ecosystem-item",
+      itemId: "fish-feed",
+    });
+    expect(result.spin.pityAfter).toBe(10);
+  });
+
   it("resolves the robot jackpot to twelve coins when all rares are owned", () => {
     const state = createInitialState();
     state.wallet = 1;

@@ -1,6 +1,6 @@
 {
   "name": "dsh-desktop-slot-widget",
-  "version": "0.6.0",
+  "version": "0.8.0-beta.1",
   "description": "A pixel-art slot companion plugin for DSH Desktop.",
   "main": "./lib/index.js",
   "files": [
@@ -8,6 +8,7 @@
     "assets",
     "companion",
     "cordis.patch.yml",
+    "ASSETS.md",
     "README.md",
     "LICENSE"
   ],
@@ -25,11 +26,12 @@
   "engines": {
     "node": "^22.22.2 || >=24.15.0"
   },
-  "packageManager": "pnpm@11.7.0",
+  "packageManager": "npm@11.9.0",
   "scripts": {
     "test": "vitest",
     "dev": "vite",
     "build": "node scripts/build-plugin.mjs",
+    "build:artifacts": "node scripts/build-plugin.mjs --skip-pack",
     "build:source": "node scripts/build-source.mjs",
     "build:preview": "tsc --noEmit && vite build",
     "typecheck": "tsc --noEmit",
@@ -38,12 +40,19 @@
     "test:e2e": "playwright test",
     "test:unit": "vitest run --exclude src/plugin/package-contract.test.ts",
     "test:package": "vitest run src/plugin/package-contract.test.ts",
-    "test:visual": "playwright test tests/visual.spec.ts"
+    "test:visual": "playwright test tests/visual.spec.ts",
+    "prepack": "npm run build:artifacts",
+    "pack:release": "npm pack",
+    "verify:release-artifact": "npm run typecheck && npm run build:artifacts && npm run test:unit && npm pack --ignore-scripts && npm run test:package",
+    "verify:release-metadata": "node scripts/check-release-metadata.mjs"
   },
   "keywords": [
     "deepseek-harness",
     "dsh",
+    "dsh-plugin",
     "dsh-desktop",
+    "desktop-companion",
+    "pixel-art",
     "plugin",
     "slot-widget"
   ],
@@ -55,8 +64,12 @@
   "bugs": {
     "url": "https://github.com/YuiKiZJ2026/dsh-desktop-slot-widget/issues"
   },
-  "author": "DSH Desktop Slot contributors",
+  "author": "YuiKiZJ2026 and contributors",
   "license": "ISC",
+  "publishConfig": {
+    "access": "public",
+    "provenance": true
+  },
   "type": "module",
   "dependencies": {
     "zod": "^4.4.3"

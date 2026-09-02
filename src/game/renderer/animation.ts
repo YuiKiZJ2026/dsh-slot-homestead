@@ -1,3 +1,4 @@
+import { comboIdsForDisplayed } from "../../domain/collectible-combos";
 import type { AgentStatus, ReelSymbol, TablePlacement } from "../../domain/types";
 
 export interface AnimationInput {
@@ -86,6 +87,7 @@ export function animationFrameFor(input: AnimationInput): SceneViewModel {
       elapsedMs,
       agentElapsedMs,
       payoutPosition,
+      input.displayed,
     ),
     displayed: [...input.displayed],
     placements: input.placements.map((placement) => ({ ...placement })),
@@ -213,22 +215,30 @@ function sampleSparkles(
   phaseElapsedMs: number,
   agentElapsedMs: number,
   payoutPosition: { x: number; y: number } | null,
+  displayed: readonly string[],
 ): Array<{ x: number; y: number; frame: number }> {
+  let reaction: Array<{ x: number; y: number; frame: number }> = [];
   if (agentStatus === "completed") {
-    if (agentElapsedMs > 1_200) return [];
-    return Array.from({ length: 6 }, (_, index) => ({
-      x: 48 + index * 51,
-      y: 92 + (index % 3) * 28,
-      frame: (Math.floor(agentElapsedMs / 80) + index) % 3,
+    if (agentElapsedMs <= 1_200) {
+      reaction = Array.from({ length: 6 }, (_, index) => ({
+        x: 48 + index * 51,
+        y: 92 + (index % 3) * 28,
+        frame: (Math.floor(agentElapsedMs / 80) + index) % 3,
+      }));
+    }
+  } else if (stage === "payout") {
+    const center = payoutPosition ?? PAYOUT_START;
+    reaction = Array.from({ length: 4 }, (_, index) => ({
+      x: center.x - 12 + index * 8,
+      y: center.y - 18 - (index % 2) * 6,
+      frame: (Math.floor(phaseElapsedMs / 80) + index) % 3,
     }));
   }
-  if (stage !== "payout") return [];
-  const center = payoutPosition ?? PAYOUT_START;
-  return Array.from({ length: 4 }, (_, index) => ({
-    x: center.x - 12 + index * 8,
-    y: center.y - 18 - (index % 2) * 6,
-    frame: (Math.floor(phaseElapsedMs / 80) + index) % 3,
-  }));
+  const comboSparkles = comboIdsForDisplayed(displayed).flatMap((_comboId, index) => ([
+    { x: 82 + index * 104, y: 105 + index * 12, frame: Math.floor(agentElapsedMs / 160) % 3 },
+    { x: 112 + index * 104, y: 80 + index * 10, frame: (Math.floor(agentElapsedMs / 160) + 1) % 3 },
+  ]));
+  return [...reaction, ...comboSparkles].slice(0, 6);
 }
 
 function sampleEffects(

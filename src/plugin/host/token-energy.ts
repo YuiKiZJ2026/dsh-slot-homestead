@@ -1,4 +1,5 @@
 import type { EligibleTurnUsage, HostState, ReportedTokenUsage } from "../shared/contracts";
+import { advanceEcosystemStateFromWork } from "../../ecosystem/ecosystem";
 
 const TOKENS_PER_COIN = 10_000;
 const DAILY_TOKEN_COIN_CAP = 8;
@@ -90,7 +91,10 @@ export function applyEligibleTurnUsage(
     DAILY_TOKEN_COIN_CAP - tokenCoinsToday,
     DAILY_WORK_COIN_CAP - workCoinsToday,
   );
-  const nextProgress = totalProgress % TOKENS_PER_COIN;
+  const reachesDailyCap =
+    tokenCoinsToday + awardedCoins >= DAILY_TOKEN_COIN_CAP ||
+    workCoinsToday + awardedCoins >= DAILY_WORK_COIN_CAP;
+  const nextProgress = reachesDailyCap ? 0 : totalProgress % TOKENS_PER_COIN;
 
   return {
     ...state,
@@ -111,6 +115,9 @@ export function applyEligibleTurnUsage(
           : { ...state.tokenEnergy.dailyCoins, [localDate]: tokenCoinsToday + awardedCoins },
     },
     tokenUsageWatermarks: nextWatermarks,
+    ecosystem: awardedCoins === 0
+      ? state.ecosystem
+      : advanceEcosystemStateFromWork(state.ecosystem, awardedCoins),
   };
 }
 

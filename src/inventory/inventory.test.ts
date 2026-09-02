@@ -68,6 +68,51 @@ describe("inventory and shop", () => {
     expect(settled.pityMisses).toBe(5);
   });
 
+  it("settles a new ecosystem resident and selects it in its habitat", () => {
+    const state = createInitialState();
+    state.activeSpin = {
+      id: "spin-moon-carp", stage: "payout", reels: ["leaf", "leaf", "leaf"],
+      reward: { kind: "ecosystem-item", itemId: "moon-carp", isDuplicate: false, conversionCoins: 0 },
+      pityAfter: 0, createdAt: "2026-08-26T00:00:00Z",
+    };
+
+    const settled = settleActiveSpin(state, "spin-moon-carp");
+
+    expect(settled.ecosystem.discovered).toContain("moon-carp");
+    expect(settled.ecosystem.selected.aquarium).toBe("moon-carp");
+    expect(settled.activeSpin?.stage).toBe("settled");
+  });
+
+  it("settles a duplicate ecosystem resident as coins", () => {
+    const state = createInitialState();
+    state.activeSpin = {
+      id: "spin-goldfish", stage: "payout", reels: ["leaf", "leaf", "leaf"],
+      reward: { kind: "ecosystem-item", itemId: "goldfish", isDuplicate: true, conversionCoins: 3 },
+      pityAfter: 2, createdAt: "2026-08-26T00:00:00Z",
+    };
+
+    const settled = settleActiveSpin(state, "spin-goldfish");
+
+    expect(settled.wallet).toBe(3);
+    expect(settled.ecosystem.discovered.filter((id) => id === "goldfish")).toHaveLength(1);
+    expect(settled.pityMisses).toBe(2);
+  });
+
+  it("uses the conversion amount locked into the spin instead of the live catalog price", () => {
+    const state = createInitialState();
+    state.wallet = 4;
+    state.activeSpin = {
+      id: "spin-locked-conversion", stage: "payout", reels: ["leaf", "leaf", "leaf"],
+      reward: { kind: "ecosystem-item", itemId: "goldfish", isDuplicate: true, conversionCoins: 17 },
+      pityAfter: 4, createdAt: "2026-08-26T00:00:00Z",
+    };
+
+    const settled = settleActiveSpin(state, "spin-locked-conversion");
+
+    expect(settled.wallet).toBe(21);
+    expect(settled.pityMisses).toBe(4);
+  });
+
   it("applies a locked coin reward once", () => {
     const state = createInitialState();
     state.wallet = 4;

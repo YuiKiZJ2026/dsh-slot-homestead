@@ -1,6 +1,7 @@
 import { CATALOG_BY_ID, COLLECTIBLES } from "../domain/catalog";
 import { legacyPlacements, TABLE_POSITIONS } from "../domain/table-positions";
 import type { GameState, TablePlacement, TablePositionId } from "../domain/types";
+import { applyEcosystemReward } from "../ecosystem/ecosystem";
 
 const DISPLAY_SLOT_LIMIT = 12;
 const STARRY_NIGHT_SET = ["star-projector", "constellation-globe", "comet-badge"] as const;
@@ -20,6 +21,7 @@ export function settleActiveSpin(state: GameState, spinId: string): GameState {
 
   let wallet = state.wallet;
   let ownedCollectibles = state.ownedCollectibles;
+  let ecosystem = state.ecosystem;
 
   switch (spin.reward.kind) {
     case "coins":
@@ -33,6 +35,17 @@ export function settleActiveSpin(state: GameState, spinId: string): GameState {
       }
       break;
 
+    case "ecosystem-item": {
+      const applied = applyEcosystemReward(
+        { ...state, wallet, ecosystem },
+        spin.reward.itemId,
+        spin.reward.conversionCoins,
+      );
+      wallet = applied.state.wallet;
+      ecosystem = applied.state.ecosystem;
+      break;
+    }
+
     case "none":
       break;
   }
@@ -44,6 +57,7 @@ export function settleActiveSpin(state: GameState, spinId: string): GameState {
     ownedCollectibles,
     displayedCollectibles: [...state.displayedCollectibles],
     tablePlacements: [...state.tablePlacements],
+    ecosystem,
     activeSpin: { ...spin, stage: "settled" },
   };
 }

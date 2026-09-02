@@ -4,6 +4,10 @@ export interface Clock {
   now(): Date;
 }
 
+export interface AdjustableClock extends Clock {
+  set(value: Date): void;
+}
+
 export class SystemClock implements Clock {
   now(): Date {
     return new Date();
@@ -19,6 +23,18 @@ export class FixedClock implements Clock {
 
   set(value: Date): void {
     this.value = new Date(value);
+  }
+}
+
+export class OffsetSystemClock implements AdjustableClock {
+  private offsetMs = 0;
+
+  now(): Date {
+    return new Date(Date.now() + this.offsetMs);
+  }
+
+  set(value: Date): void {
+    this.offsetMs = value.getTime() - Date.now();
   }
 }
 

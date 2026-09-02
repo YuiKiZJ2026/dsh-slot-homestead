@@ -1,4 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
+import { createInitialEcosystemState } from "../../domain/types";
 import type { PublicSnapshot } from "../shared/contracts";
 import { startCompanionServer } from "./companion-server";
 
@@ -17,6 +18,7 @@ const snapshot: PublicSnapshot = {
   pendingSpin: null,
   agentStatus: "idle",
   capabilities: { commands: true },
+  ecosystem: createInitialEcosystemState(),
 };
 
 describe("loopback companion server", () => {

@@ -11,6 +11,31 @@ tmp/
 /lib/
 /*.tgz
 /.dsh-*/
+/animation-plans/
+/artifacts/
+/docs/qa/
+**/__pycache__/
+*.py[cod]
+*.log
+.DS_Store
+Thumbs.db
+.env
+.env.*
+!.env.example
 public/assets/*-source.png
+
+# Obsolete, intermediate, or non-runtime ecosystem artwork. The audited
+# runtime atlases and scene assets remain tracked in both asset roots.
+**/assets/ecosystem-*-background-v2.png
+**/assets/ecosystem-animal-*.png
+**/assets/ecosystem-crop-*.png
+**/assets/ecosystem-fish-*.png
+**/assets/ecosystem-shared-table.png
+**/assets/ecosystem-table-extension.png
+**/assets/ecosystem-workbench-unified.png
+**/assets/ecosystem-animals.png
+**/assets/ecosystem-aquarium.png
+**/assets/ecosystem-garden.png
+**/assets/ecosystem-reference-garden.png
 .research/
 .superpowers/

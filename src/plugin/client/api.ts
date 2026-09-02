@@ -17,8 +17,11 @@ const errorCodeSchema = z.enum([
   "invalid-spin-state",
   "unknown-item",
   "already-owned",
+  "no-supply",
+  "nothing-to-collect",
   "locked-spin-reward",
   "item-not-owned",
+  "position-occupied",
 ]);
 const successEnvelopeSchema = z.object({ snapshot: publicSnapshotSchema }).strict();
 const conflictEnvelopeSchema = z.object({

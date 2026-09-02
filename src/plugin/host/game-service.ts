@@ -9,6 +9,12 @@ import {
   setCollectibleDisplayed,
   setCollectiblePlacement,
 } from "../../inventory/inventory";
+import {
+  buyEcosystemItem,
+  careForHabitat,
+  collectHabitatProduce,
+} from "../../ecosystem/ecosystem";
+import { advanceEcosystemTo } from "../../ecosystem/lifecycle";
 import type { Clock } from "../../time/clock";
 import { localDateKey, SystemClock } from "../../time/clock";
 import type {
@@ -32,6 +38,7 @@ import { applyEligibleTurnUsage } from "./token-energy";
 const COMMAND_MAX_AGE_MS = 15 * 60 * 1_000;
 const COMMAND_FUTURE_TOLERANCE_MS = 5 * 60 * 1_000;
 const MAX_RECENT_COMMANDS = 128;
+const USAGE_REWARD_WINDOW_MS = 7 * 24 * 60 * 60 * 1_000;
 
 export interface GameServiceDependencies {
   readonly clock: Clock;
@@ -86,8 +93,13 @@ export class GameService {
     this.ensureActive();
     const request = commandRequestSchema.parse(input);
     return this.queue.run(async () => {
-      const current = this.read();
-      const today = localDateKey(this.dependencies.clock.now());
+      const now = this.dependencies.clock.now();
+      const storedCurrent = this.read();
+      const current: HostState = {
+        ...storedCurrent,
+        ecosystem: advanceEcosystemTo(storedCurrent.ecosystem, now),
+      };
+      const today = localDateKey(now);
       const fingerprint = commandFingerprint(request);
       const receipt = current.recentCommands[request.commandId];
 
@@ -103,11 +115,11 @@ export class GameService {
       if (request.expectedRevision !== current.revision) {
         return this.conflict(current, request.sessionId, "revision-conflict");
       }
-      if (isExpired(request.issuedAt, this.dependencies.clock.now())) {
+      if (isExpired(request.issuedAt, now)) {
         return this.conflict(current, request.sessionId, "command-expired");
       }
 
-      const transition = this.transition(current, request, today);
+      const transition = this.transition(current, request, today, now);
       if (transition.kind === "error") {
         return this.conflict(current, request.sessionId, transition.code);
       }
@@ -162,6 +174,16 @@ export class GameService {
     if (this.adoptedUsageSessions.has(session.id)) return Promise.resolve();
     const existing = this.usageAdoptions.get(session.id);
     if (existing !== undefined) return existing;
+
+    const current = this.read();
+    if (
+      !requiresLegacyUsageRecovery(current, session.id) &&
+      isSessionHistoryExpired(session, this.dependencies.clock.now())
+    ) {
+      this.recordUsageHighWater(session);
+      this.adoptedUsageSessions.add(session.id);
+      return Promise.resolve();
+    }
 
     // session.events is an authoritative complete prefix/high-water. The same
     // collector continues any open turn with buffered/live suffix events.
@@ -243,7 +265,16 @@ export class GameService {
 
   private async processUsage(event: EligibleTurnUsage): Promise<void> {
     if (this.blockedUsageSessions.has(event.sessionId)) return;
-    const current = this.read();
+    const storedCurrent = this.read();
+    const now = this.dependencies.clock.now();
+    const current: HostState = {
+      ...storedCurrent,
+      ecosystem: advanceEcosystemTo(storedCurrent.ecosystem, now),
+    };
+    if (
+      !requiresLegacyUsageRecovery(current, event.sessionId) &&
+      isUsageExpired(event.occurredAt, now)
+    ) return;
     const eventDate = localDateKey(event.occurredAt);
     const next = applyEligibleTurnUsage(current, event, eventDate);
     if (next === current) return;
@@ -265,9 +296,16 @@ export class GameService {
       throw new Error(`Token usage for ${sessionId} is blocked until Host restart`);
     }
 
-    const current = this.read();
+    const storedCurrent = this.read();
+    const current: HostState = {
+      ...storedCurrent,
+      ecosystem: advanceEcosystemTo(storedCurrent.ecosystem, this.dependencies.clock.now()),
+    };
     let next = current;
+    const replayLegacyHistory = requiresLegacyUsageRecovery(current, sessionId);
+    const now = this.dependencies.clock.now();
     for (const aggregate of aggregates) {
+      if (!replayLegacyHistory && isUsageExpired(aggregate.occurredAt, now)) continue;
       next = applyEligibleTurnUsage(next, aggregate, localDateKey(aggregate.occurredAt));
     }
     next = pruneLegacyReceiptsForSession(next, sessionId);
@@ -282,17 +320,16 @@ export class GameService {
   }
 
   private adoptUsagePrefix(session: SessionLike): readonly EligibleTurnUsage[] {
-    const highWater = session.events.reduce(
-      (highest, event) => Number.isSafeInteger(event.seq) && event.seq >= 0
-        ? Math.max(highest, event.seq)
-        : highest,
-      -1,
-    );
+    this.recordUsageHighWater(session);
+    return this.usage.adopt(session);
+  }
+
+  private recordUsageHighWater(session: SessionLike): void {
+    const highWater = sessionHighWater(session);
     this.usageEventHighWatermarks.set(
       session.id,
       Math.max(this.usageEventHighWatermarks.get(session.id) ?? -1, highWater),
     );
-    return this.usage.adopt(session);
   }
 
   private acceptAdoptedSessionEvent(
@@ -323,6 +360,7 @@ export class GameService {
   }
 
   private project(state: HostState, sessionId: string): PublicSnapshot {
+    const ecosystem = advanceEcosystemTo(state.ecosystem, this.dependencies.clock.now());
     return {
       revision: state.revision,
       wallet: state.wallet,
@@ -334,6 +372,7 @@ export class GameService {
       inventory: [...state.inventory],
       displaySlots: [...state.displaySlots],
       tablePlacements: placementsFor(state),
+      ecosystem,
       settings: { ...state.settings },
       pendingSpin: state.pendingSpin === null ? null : structuredClone(state.pendingSpin),
       agentStatus: this.agentStatus(sessionId),
@@ -360,7 +399,12 @@ export class GameService {
     return { status: 409, snapshot: this.project(state, sessionId), errorCode };
   }
 
-  private transition(current: HostState, request: CommandRequest, today: string): Transition {
+  private transition(
+    current: HostState,
+    request: CommandRequest,
+    today: string,
+    now: Date,
+  ): Transition {
     switch (request.type) {
       case "claimDaily":
         if (current.lastGrantedLocalDate !== null && today < current.lastGrantedLocalDate) {
@@ -437,13 +481,17 @@ export class GameService {
             inventory: settled.ownedCollectibles,
             displaySlots: settled.displayedCollectibles,
             tablePlacements: settled.tablePlacements,
+            ecosystem: settled.ecosystem,
             pendingSpin: null,
           },
         };
       }
 
       case "buyItem": {
-        const result = buyCollectible(toGameState(current), request.itemId);
+        const collectibleResult = buyCollectible(toGameState(current), request.itemId);
+        const result = collectibleResult.ok || collectibleResult.reason !== "UNKNOWN_ITEM"
+          ? collectibleResult
+          : buyEcosystemItem(toGameState(current), request.itemId);
         if (!result.ok) return { kind: "error", code: purchaseError(result.reason) };
         return {
           kind: "changed",
@@ -453,6 +501,33 @@ export class GameService {
             inventory: result.state.ownedCollectibles,
             displaySlots: result.state.displayedCollectibles,
             tablePlacements: result.state.tablePlacements,
+            ecosystem: result.state.ecosystem,
+          },
+        };
+      }
+
+      case "careHabitat": {
+        const result = careForHabitat(toGameState(current), request.habitat, now);
+        if (!result.ok) return { kind: "error", code: "no-supply" };
+        return {
+          kind: "changed",
+          state: {
+            ...current,
+            wallet: result.state.wallet,
+            ecosystem: result.state.ecosystem,
+          },
+        };
+      }
+
+      case "collectHabitat": {
+        const result = collectHabitatProduce(toGameState(current), request.habitat, now);
+        if (!result.ok) return { kind: "error", code: "nothing-to-collect" };
+        return {
+          kind: "changed",
+          state: {
+            ...current,
+            wallet: result.state.wallet,
+            ecosystem: result.state.ecosystem,
           },
         };
       }
@@ -526,6 +601,7 @@ function toGameState(state: HostState): GameState {
   game.ownedCollectibles = [...state.inventory];
   game.displayedCollectibles = [...state.displaySlots];
   game.tablePlacements = placementsFor(state);
+  game.ecosystem = structuredClone(state.ecosystem);
   game.settings = { ...state.settings };
   game.activeSpin = state.pendingSpin === null
     ? null
@@ -555,6 +631,10 @@ function commandFingerprint(request: CommandRequest): string {
       return JSON.stringify([request.sessionId, request.type, request.spinId]);
     case "buyItem":
       return JSON.stringify([request.sessionId, request.type, request.itemId]);
+    case "careHabitat":
+      return JSON.stringify([request.sessionId, request.type, request.habitat]);
+    case "collectHabitat":
+      return JSON.stringify([request.sessionId, request.type, request.habitat]);
     case "setDisplay":
       return JSON.stringify([request.sessionId, request.type, request.itemId, request.displayed]);
     case "setPlacement":
@@ -608,6 +688,23 @@ function appendReceipt(
 function isExpired(issuedAt: string, now: Date): boolean {
   const age = now.getTime() - new Date(issuedAt).getTime();
   return age > COMMAND_MAX_AGE_MS || age < -COMMAND_FUTURE_TOLERANCE_MS;
+}
+
+function isUsageExpired(occurredAt: string, now: Date): boolean {
+  return now.getTime() - new Date(occurredAt).getTime() > USAGE_REWARD_WINDOW_MS;
+}
+
+function isSessionHistoryExpired(session: SessionLike, now: Date): boolean {
+  const latestEventTime = session.events.reduce(
+    (latest, event) => Number.isFinite(event.time) ? Math.max(latest, event.time) : latest,
+    session.header.createdAt,
+  );
+  return now.getTime() - latestEventTime > USAGE_REWARD_WINDOW_MS;
+}
+
+function requiresLegacyUsageRecovery(state: HostState, sessionId: string): boolean {
+  return state.legacyTokenUsageReceipts?.[sessionId] !== undefined ||
+    state.legacyWeightedUsageWatermarks?.[sessionId] !== undefined;
 }
 
 function sameStrings(left: readonly string[], right: readonly string[]): boolean {

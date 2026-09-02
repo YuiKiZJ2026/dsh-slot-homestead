@@ -61,7 +61,7 @@ describe("authoritative host contracts", () => {
     });
 
     expect(migrated).toMatchObject({
-      schemaVersion: 3,
+      schemaVersion: 4,
       revision: 9,
       tokenEnergy: { progress: 0, dailyCoins: {} },
       tokenUsageWatermarks: {},
@@ -73,8 +73,60 @@ describe("authoritative host contracts", () => {
         "session-a": { "3": true, "17": true },
         "workspace:session-b": { "4": true },
       },
+      ecosystem: {
+        discovered: ["goldfish", "carrot-seed", "chick"],
+        harmony: 0,
+        lifecycle: {
+          lastSimulatedAt: null,
+          fish: { goldfish: { count: 1, growth: 0 } },
+          plots: { "1": { seedId: "carrot-seed", readyYield: 0 } },
+          livestock: { chick: { adults: 0, juveniles: 1 } },
+          produce: {},
+        },
+      },
     });
     expect(migrated).not.toHaveProperty("tokenUsageReceipts");
+  });
+
+  it("upgrades legacy command receipts whose durable snapshots predate the ecosystem", () => {
+    const commandId = "00000000-0000-4000-8000-000000000901";
+    const migrated = hostStateSchema.parse({
+      schemaVersion: 1,
+      revision: 1,
+      wallet: 3,
+      lastGrantedLocalDate: "2026-08-26",
+      daily: { "2026-08-26": { workCoins: 0 } },
+      tokenEnergy: { progress: 0, dailyCoins: {} },
+      tokenUsageReceipts: {},
+      pityCount: 0,
+      inventory: [],
+      displaySlots: [],
+      settings: { muted: true, reducedMotion: false, scale: 1 },
+      pendingSpin: null,
+      recentCommands: {
+        [commandId]: {
+          fingerprint: '["session-1","claimDaily"]',
+          issuedAt: "2026-08-26T04:00:00.000Z",
+          snapshot: {
+            revision: 1,
+            wallet: 3,
+            localDate: "2026-08-26",
+            lastGrantedLocalDate: "2026-08-26",
+            daily: { "2026-08-26": { workCoins: 0 } },
+            tokenEnergy: { progress: 0, dailyCoins: {} },
+            pityCount: 0,
+            inventory: [],
+            displaySlots: [],
+            settings: { muted: true, reducedMotion: false, scale: 1 },
+            pendingSpin: null,
+            capabilities: { commands: true },
+          },
+        },
+      },
+    });
+
+    expect(migrated.recentCommands[commandId]?.snapshot.ecosystem.lifecycle.lastSimulatedAt)
+      .toBeNull();
   });
 
   it("rejects unknown persisted state fields", () => {
@@ -131,6 +183,9 @@ describe("authoritative host contracts", () => {
     { ...common, type: "pullLever", spinId: "spin-1" },
     { ...common, type: "settleSpin", spinId: "spin-1" },
     { ...common, type: "buyItem", itemId: "plant" },
+    { ...common, type: "careHabitat", habitat: "aquarium" },
+    { ...common, type: "collectHabitat", habitat: "garden" },
+    { ...common, type: "collectHabitat", habitat: "animals" },
     { ...common, type: "setDisplay", itemId: "plant", displayed: true },
     { ...common, type: "setPlacement", itemId: "plant", positionId: "left-front-round" },
     { ...common, type: "setPlacement", itemId: "plant", positionId: null },

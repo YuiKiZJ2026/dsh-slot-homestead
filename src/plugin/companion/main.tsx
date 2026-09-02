@@ -5,6 +5,7 @@ import { installPluginStyle } from "../client/style";
 import collectiblesUrl from "../client/assets/collectibles.png";
 import reelsUrl from "../client/assets/reel-symbols-runtime.png";
 import sceneUrl from "../client/assets/scene-base.png";
+import { ECOSYSTEM_ASSET_URLS } from "../client/ecosystem-assets";
 
 const apiBase = validatedApiBase(new URLSearchParams(window.location.search).get("apiBase"));
 const assets = {
@@ -12,13 +13,13 @@ const assets = {
   reels: reelsUrl,
   collectibles: collectiblesUrl,
 };
-
 installPluginStyle(document);
 createRoot(document.getElementById("root")!).render(
   <PluginApp
     api={new HttpGameApi(globalThis.fetch.bind(globalThis), apiBase)}
     sessionId="dsh-slot-widget-global"
     assetUrls={assets}
+    ecosystemAssetUrls={ECOSYSTEM_ASSET_URLS}
     displayMode="companion"
   />,
 );

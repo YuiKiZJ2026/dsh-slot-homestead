@@ -1,4 +1,5 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
+import { createInitialEcosystemState } from "../../domain/types";
 import type { CommandRequest, PublicSnapshot } from "../shared/contracts";
 import { HttpGameApi } from "./api";
 
@@ -77,6 +78,20 @@ describe("HttpGameApi", () => {
       errorCode: "revision-conflict",
     });
   });
+
+  it("accepts every shared placement conflict code from the Host contract", async () => {
+    const current = snapshot({ revision: 12 });
+    const fetcher = vi.fn<typeof fetch>().mockResolvedValue(jsonResponse({
+      snapshot: current,
+      errorCode: "position-occupied",
+    }, 409));
+
+    await expect(new HttpGameApi(fetcher).command(insertRequest())).resolves.toEqual({
+      status: 409,
+      snapshot: current,
+      errorCode: "position-occupied",
+    });
+  });
 });
 
 function snapshot(overrides: Partial<PublicSnapshot> = {}): PublicSnapshot {
@@ -94,6 +109,7 @@ function snapshot(overrides: Partial<PublicSnapshot> = {}): PublicSnapshot {
     pendingSpin: null,
     agentStatus: "idle",
     capabilities: { commands: true },
+    ecosystem: createInitialEcosystemState(),
     ...overrides,
   };
 }

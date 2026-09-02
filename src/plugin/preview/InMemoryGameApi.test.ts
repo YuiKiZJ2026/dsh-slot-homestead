@@ -3,8 +3,51 @@ import type { CommandRequest } from "../shared/contracts";
 import { InMemoryGameApi } from "./InMemoryGameApi";
 
 describe("InMemoryGameApi", () => {
+  it("refills exhausted preview supplies, clears an unfinished spin, and keeps each page sandbox isolated", async () => {
+    const firstPageApi = new InMemoryGameApi();
+    const secondPageApi = new InMemoryGameApi();
+    let firstPage = await firstPageApi.getSnapshot("preview-first");
+
+    firstPage = (await firstPageApi.command({
+      ...base(firstPage.revision, 1),
+      type: "careHabitat",
+      habitat: "animals",
+    })).snapshot;
+    expect(firstPage.ecosystem.supplies.animalFeed).toBe(0);
+
+    firstPage = (await firstPageApi.command(command("insertCoin", firstPage.revision))).snapshot;
+    expect(firstPage).toMatchObject({ wallet: 7, pendingSpin: { stage: "paid" } });
+
+    const refilled = firstPageApi.refillTestResources();
+    expect(refilled).toMatchObject({
+      revision: firstPage.revision + 1,
+      wallet: 99,
+      pendingSpin: null,
+      ecosystem: {
+        supplies: { fishFeed: 9, fertilizer: 9, animalFeed: 9 },
+      },
+    });
+    expect(await secondPageApi.getSnapshot("preview-second")).toMatchObject({
+      revision: 0,
+      wallet: 8,
+      ecosystem: {
+        supplies: { fishFeed: 1, fertilizer: 1, animalFeed: 1 },
+      },
+    });
+
+    const caredAgain = await firstPageApi.command({
+      ...base(refilled.revision, 2),
+      type: "careHabitat",
+      habitat: "animals",
+    });
+    expect(caredAgain).toMatchObject({
+      status: 200,
+      snapshot: { ecosystem: { supplies: { animalFeed: 8 } } },
+    });
+  });
+
   it("keeps the standalone 1850/10000 fixture interactive through Host-shaped spin stages", async () => {
-    const api = new InMemoryGameApi();
+    const api = new InMemoryGameApi({ rng: sequence(0.7) });
     let state = await api.getSnapshot("preview");
     expect(state.tokenEnergy.progress).toBe(1_850);
     expect(state.tokenEnergy.dailyCoins[state.localDate]).toBe(3);
@@ -19,6 +62,40 @@ describe("InMemoryGameApi", () => {
     state = (await api.command(command("settleSpin", state.revision, { spinId }))).snapshot;
     expect(state.pendingSpin).toBeNull();
     expect(state.wallet).toBeGreaterThan(7);
+  });
+
+  it("uses the production spin resolver and settles a real collectible into inventory", async () => {
+    const api = new InMemoryGameApi({
+      rng: sequence(0.8, 0.2),
+      createId: () => "preview-real-spin",
+    });
+    let state = await api.getSnapshot("preview");
+
+    state = (await api.command(command("insertCoin", state.revision))).snapshot;
+    expect(state).toMatchObject({
+      wallet: 7,
+      pendingSpin: {
+        id: "preview-real-spin",
+        stage: "paid",
+        reels: ["leaf", "leaf", "leaf"],
+        reward: {
+          kind: "collectible",
+          collectibleId: "book-stand",
+          isDuplicate: false,
+        },
+      },
+    });
+
+    const spinId = state.pendingSpin!.id;
+    state = (await api.command(command("pullLever", state.revision, { spinId }))).snapshot;
+    state = (await api.command(command("settleSpin", state.revision, { spinId }))).snapshot;
+
+    expect(state).toMatchObject({
+      wallet: 7,
+      inventory: ["plant", "book-stand"],
+      pityCount: 0,
+      pendingSpin: null,
+    });
   });
 
   it("supports warehouse placement, moving, removal, and occupied-position rejection", async () => {
@@ -165,7 +242,54 @@ describe("InMemoryGameApi", () => {
       settings: { muted: false, reducedMotion: true, scale: 2 },
     });
   });
+
+  it("uses a controllable ecology clock for feeding, growth, crops, eggs, and collection", async () => {
+    const api = new InMemoryGameApi();
+    let state = await api.getSnapshot("preview");
+
+    state = (await api.command({
+      ...base(state.revision, 51),
+      type: "careHabitat",
+      habitat: "aquarium",
+    })).snapshot;
+    api.advanceTestEcosystem(6);
+    state = await api.getSnapshot("preview");
+    expect(state.ecosystem.lifecycle.fish.goldfish?.growth).toBeGreaterThan(0);
+
+    state = (await api.command({
+      ...base(state.revision, 52),
+      type: "careHabitat",
+      habitat: "garden",
+    })).snapshot;
+    api.advanceTestEcosystem(24);
+    state = await api.getSnapshot("preview");
+    expect(state.ecosystem.lifecycle.plots["1"].readyYield).toBe(1);
+    const walletBeforeHarvest = state.wallet;
+
+    state = (await api.command({
+      ...base(state.revision, 53),
+      type: "collectHabitat",
+      habitat: "garden",
+    })).snapshot;
+    expect(state.ecosystem.lifecycle.produce.carrot).toBe(1);
+    expect(state.wallet).toBeGreaterThan(walletBeforeHarvest);
+    expect(await api.command({
+      ...base(state.revision, 54),
+      type: "collectHabitat",
+      habitat: "garden",
+    })).toMatchObject({ status: 409, errorCode: "nothing-to-collect" });
+
+    api.advanceTestEcosystem(48);
+    state = await api.getSnapshot("preview");
+    expect(state.ecosystem.lifecycle.livestock.chick?.adults).toBeGreaterThanOrEqual(1);
+    expect(state.ecosystem.lifecycle.livestock.chick?.readyProducts).toBeGreaterThanOrEqual(1);
+  });
 });
+
+function sequence(...values: number[]) {
+  let index = 0;
+  return { next: () => values[index++] ?? values.at(-1) ?? 0 };
+}
 
 function base(expectedRevision: number, sequence: number) {
   return {

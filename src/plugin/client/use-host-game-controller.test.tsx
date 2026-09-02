@@ -1,4 +1,5 @@
 import { act, cleanup, renderHook, waitFor } from "@testing-library/react";
+import { createInitialEcosystemState } from "../../domain/types";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import type { CommandRequest, CommandResult, PublicSnapshot } from "../shared/contracts";
 import type { GameApi } from "./api";
@@ -11,6 +12,25 @@ afterEach(() => {
 });
 
 describe("useHostGameController", () => {
+  it("sends one revision-guarded collection command for the visible habitat", async () => {
+    const api = new RecordingApi(snapshot(), () => ({
+      status: 200,
+      snapshot: snapshot({ revision: 8 }),
+    }));
+    const { result } = renderHook(() => useHostGameController(options(api)));
+    await waitFor(() => expect(result.current.snapshot?.revision).toBe(7));
+
+    await act(async () => { await result.current.collect("garden"); });
+
+    expect(api.requests).toHaveLength(1);
+    expect(api.requests[0]).toMatchObject({
+      type: "collectHabitat",
+      habitat: "garden",
+      expectedRevision: 7,
+      sessionId: "session-1",
+    });
+  });
+
   it("refreshes first and automatically claims the Host-provided unclaimed local date", async () => {
     const before = snapshot({
       revision: 3,
@@ -72,6 +92,152 @@ describe("useHostGameController", () => {
     expect(api.snapshotCalls).toBe(callsAtUnmount);
   });
 
+  it("coalesces explicit, lifecycle, and polling refreshes while one request is in flight", async () => {
+    vi.useFakeTimers();
+    const firstSnapshot = deferredPromise<PublicSnapshot>();
+    let snapshotCalls = 0;
+    const api: GameApi = {
+      getSnapshot: () => {
+        snapshotCalls += 1;
+        return snapshotCalls === 1 ? firstSnapshot.promise : Promise.resolve(snapshot());
+      },
+      command: () => Promise.resolve({ status: 200, snapshot: snapshot() }),
+    };
+    const hookOptions = options(api);
+    const { result } = renderHook(() => useHostGameController({
+      ...hookOptions,
+      requestTimeoutMs: 5_000,
+    }));
+    await act(async () => Promise.resolve());
+    expect(snapshotCalls).toBe(1);
+
+    let refreshOne!: Promise<void>;
+    let refreshTwo!: Promise<void>;
+    act(() => {
+      refreshOne = result.current.refresh();
+      refreshTwo = result.current.refresh();
+      window.dispatchEvent(new Event("focus"));
+      window.dispatchEvent(new Event("online"));
+    });
+    await act(async () => { await vi.advanceTimersByTimeAsync(2_000); });
+    expect(snapshotCalls).toBe(1);
+
+    await act(async () => {
+      firstSnapshot.resolve(snapshot());
+      await Promise.all([refreshOne, refreshTwo]);
+    });
+    expect(result.current.snapshot?.revision).toBe(7);
+
+    await act(async () => { await vi.advanceTimersByTimeAsync(2_000); });
+    expect(snapshotCalls).toBe(2);
+  });
+
+  it("times out a never-resolving refresh and recovers on the next successful refresh", async () => {
+    vi.useFakeTimers();
+    let unavailable = true;
+    let snapshotCalls = 0;
+    const api: GameApi = {
+      getSnapshot: () => {
+        snapshotCalls += 1;
+        return unavailable ? new Promise(() => undefined) : Promise.resolve(snapshot());
+      },
+      command: () => Promise.resolve({ status: 200, snapshot: snapshot() }),
+    };
+    const hookOptions = options(api);
+    const { result } = renderHook(() => useHostGameController({
+      ...hookOptions,
+      requestTimeoutMs: 100,
+    }));
+    await act(async () => Promise.resolve());
+
+    await act(async () => { await vi.advanceTimersByTimeAsync(100); });
+    expect(result.current).toMatchObject({
+      offline: true,
+      mutationsDisabled: true,
+      error: "DSH Host refresh timed out after 100 ms",
+    });
+    expect(snapshotCalls).toBe(1);
+
+    unavailable = false;
+    await act(async () => { await result.current.refresh(); });
+    expect(result.current).toMatchObject({
+      offline: false,
+      mutationsDisabled: false,
+      error: null,
+    });
+    expect(result.current.snapshot?.revision).toBe(7);
+    expect(snapshotCalls).toBe(2);
+  });
+
+  it("falls back to the safe default deadline when a timeout override is invalid", async () => {
+    vi.useFakeTimers();
+    const api: GameApi = {
+      getSnapshot: () => new Promise(() => undefined),
+      command: () => Promise.resolve({ status: 200, snapshot: snapshot() }),
+    };
+    const hookOptions = options(api);
+    const { result } = renderHook(() => useHostGameController({
+      ...hookOptions,
+      requestTimeoutMs: 0,
+    }));
+    await act(async () => Promise.resolve());
+
+    await act(async () => { await vi.advanceTimersByTimeAsync(9_999); });
+    expect(result.current.offline).toBe(false);
+    await act(async () => { await vi.advanceTimersByTimeAsync(1); });
+    expect(result.current).toMatchObject({
+      offline: true,
+      error: "DSH Host refresh timed out after 10000 ms",
+    });
+  });
+
+  it("times out a never-resolving command, releases pending state, and works after reconciliation", async () => {
+    vi.useFakeTimers();
+    let unavailable = true;
+    let commandCalls = 0;
+    const api: GameApi = {
+      getSnapshot: () => Promise.resolve(snapshot()),
+      command: () => {
+        commandCalls += 1;
+        return unavailable
+          ? new Promise(() => undefined)
+          : Promise.resolve({ status: 200, snapshot: snapshot({ revision: 8, wallet: 4 }) });
+      },
+    };
+    const hookOptions = options(api);
+    const { result } = renderHook(() => useHostGameController({
+      ...hookOptions,
+      requestTimeoutMs: 100,
+    }));
+    await act(async () => Promise.resolve());
+    expect(result.current.mutationsDisabled).toBe(false);
+
+    let command!: Promise<void>;
+    act(() => { command = result.current.insertCoin(); });
+    expect(result.current.mutationsDisabled).toBe(true);
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(100);
+      await command;
+    });
+    expect(result.current).toMatchObject({
+      offline: true,
+      mutationsDisabled: true,
+      error: "DSH Host command timed out after 100 ms",
+    });
+    expect(commandCalls).toBe(1);
+
+    unavailable = false;
+    await act(async () => { await result.current.refresh(); });
+    expect(result.current.mutationsDisabled).toBe(false);
+    await act(async () => { await result.current.insertCoin(); });
+    expect(commandCalls).toBe(2);
+    expect(result.current).toMatchObject({
+      offline: false,
+      mutationsDisabled: false,
+      error: null,
+    });
+  });
+
   it("preserves the last successful snapshot and disables mutations while offline or a command is pending", async () => {
     const deferred = deferredPromise<CommandResult>();
     const api = new RecordingApi(snapshot(), () => deferred.promise);
@@ -117,6 +283,32 @@ describe("useHostGameController", () => {
     stalePoll.resolve(snapshot({ revision: 7, wallet: 5 }));
     await act(async () => { await refreshPromise; });
     expect(result.current.snapshot).toMatchObject({ revision: 8, wallet: 4 });
+  });
+
+  it("does not let an older same-revision ecology snapshot roll growth backward", async () => {
+    const freshEcosystem = createInitialEcosystemState();
+    freshEcosystem.lifecycle.lastSimulatedAt = "2026-08-27T06:00:00.000Z";
+    freshEcosystem.lifecycle.fish.goldfish!.growth = 24;
+    const staleEcosystem = createInitialEcosystemState();
+    staleEcosystem.lifecycle.lastSimulatedAt = "2026-08-27T03:00:00.000Z";
+    staleEcosystem.lifecycle.fish.goldfish!.growth = 12;
+    let calls = 0;
+    const api: GameApi = {
+      getSnapshot: () => Promise.resolve(snapshot({
+        ecosystem: calls++ === 0 ? freshEcosystem : staleEcosystem,
+      })),
+      command: () => Promise.resolve({ status: 200, snapshot: snapshot({ ecosystem: freshEcosystem }) }),
+    };
+    const { result } = renderHook(() => useHostGameController(options(api)));
+    await waitFor(() => expect(
+      result.current.gameState.ecosystem.lifecycle.fish.goldfish?.growth,
+    ).toBe(24));
+
+    await act(async () => { await result.current.refresh(); });
+
+    expect(result.current.gameState.ecosystem.lifecycle.fish.goldfish?.growth).toBe(24);
+    expect(result.current.snapshot?.ecosystem.lifecycle.lastSimulatedAt)
+      .toBe("2026-08-27T06:00:00.000Z");
   });
 
   it("bridges one Host spin through five visual stages and settles only after payout", async () => {
@@ -431,6 +623,7 @@ function snapshot(overrides: Partial<PublicSnapshot> = {}): PublicSnapshot {
     pendingSpin: null,
     agentStatus: "idle",
     capabilities: { commands: true },
+    ecosystem: createInitialEcosystemState(),
     ...overrides,
   };
 }

@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { createInitialEcosystemState } from "../../domain/types";
 import type { EligibleTurnUsage, HostState } from "../shared/contracts";
 import { hostStateSchema } from "../shared/contracts";
 import { actualTokenUsage, applyEligibleTurnUsage } from "./token-energy";
@@ -7,7 +8,7 @@ const day = "2026-08-26";
 
 function state(overrides: Partial<HostState> = {}): HostState {
   return {
-    schemaVersion: 3,
+    schemaVersion: 4,
     revision: 4,
     wallet: 0,
     lastGrantedLocalDate: null,
@@ -19,6 +20,7 @@ function state(overrides: Partial<HostState> = {}): HostState {
     displaySlots: [],
     settings: { muted: true, reducedMotion: false, scale: 1 },
     pendingSpin: null,
+    ecosystem: createInitialEcosystemState(),
     recentCommands: {},
     ...overrides,
   };
@@ -88,6 +90,44 @@ describe("token energy", () => {
     });
   });
 
+  it("discards overflow progress when one large turn reaches the daily token cap", () => {
+    const next = applyEligibleTurnUsage(
+      state({
+        wallet: 7,
+        daily: { [day]: { workCoins: 7 } },
+        tokenEnergy: { progress: 0, dailyCoins: { [day]: 7 } },
+      }),
+      event([181], 25_000),
+      day,
+    );
+
+    expect(next).toMatchObject({
+      wallet: 8,
+      daily: { [day]: { workCoins: 8 } },
+      tokenEnergy: { progress: 0, dailyCoins: { [day]: 8 } },
+      tokenUsageWatermarks: { "session-1": 181 },
+    });
+  });
+
+  it("discards overflow progress when one large turn reaches the daily work cap", () => {
+    const next = applyEligibleTurnUsage(
+      state({
+        wallet: 24,
+        daily: { [day]: { workCoins: 24 } },
+        tokenEnergy: { progress: 9_000, dailyCoins: { [day]: 4 } },
+      }),
+      event([182], 16_000),
+      day,
+    );
+
+    expect(next).toMatchObject({
+      wallet: 25,
+      daily: { [day]: { workCoins: 25 } },
+      tokenEnergy: { progress: 0, dailyCoins: { [day]: 5 } },
+      tokenUsageWatermarks: { "session-1": 182 },
+    });
+  });
+
   it.each([
     state({ tokenEnergy: { progress: 9_800, dailyCoins: { [day]: 8 } } }),
     state({ daily: { [day]: { workCoins: 25 } } }),
@@ -152,7 +192,7 @@ describe("token energy", () => {
     });
 
     expect(migrated).toMatchObject({
-      schemaVersion: 3,
+      schemaVersion: 4,
       tokenEnergy: { progress: 0, dailyCoins: {} },
       tokenUsageWatermarks: {},
       legacyWeightedUsageWatermarks: { "session-current": 45 },

@@ -21,24 +21,13 @@ const companion = resolve(root, "companion");
 const manifest = JSON.parse(readFileSync(resolve(root, "package.json"), "utf8"));
 const archive = resolve(root, `dsh-desktop-slot-widget-${manifest.version}.tgz`);
 const configFile = resolve(root, "vite.plugin.config.ts");
-const require = createRequire(import.meta.url);
-const npmPackPath = [
-  process.env.CODEX_PRIMARY_RUNTIME_ROOT === undefined
-    ? ""
-    : resolve(process.env.CODEX_PRIMARY_RUNTIME_ROOT, "dependencies/node/lib/node_modules/npm/node_modules/libnpmpack"),
-  resolve(dirname(process.execPath), "../lib/node_modules/npm/node_modules/libnpmpack"),
-  resolve(dirname(process.execPath), "node_modules/npm/node_modules/libnpmpack"),
-].find(existsSync);
-if (npmPackPath === undefined) {
-  throw new Error("The npm-bundled libnpmpack API is required for the offline package build");
-}
-const npmPack = require(npmPackPath);
+const shouldPack = !process.argv.includes("--skip-pack");
 
 rmSync(staging, { force: true, recursive: true });
 rmSync(lib, { force: true, recursive: true });
 rmSync(assets, { force: true, recursive: true });
 rmSync(companion, { force: true, recursive: true });
-rmSync(archive, { force: true });
+if (shouldPack) rmSync(archive, { force: true });
 mkdirSync(lib, { recursive: true });
 
 await build({ configFile, mode: "plugin-host" });
@@ -88,7 +77,28 @@ copyDeclaration("plugin/host/index.d.ts", "index.d.ts", resolve(root, "src/plugi
 copyDeclaration("plugin/client/index.d.ts", "client/index.d.ts", resolve(root, "src/plugin/client/index.tsx"));
 
 mkdirSync(assets, { recursive: true });
-for (const name of ["collectibles.png", "reel-symbols-runtime.png", "scene-base.png"]) {
+for (const name of [
+  "collectibles.png",
+  "ecosystem-animal-lifecycle-atlas-v2.svg",
+  "ecosystem-animal-produce-atlas-v2.svg",
+  "ecosystem-reference-aquarium.png",
+  "ecosystem-arrow.png",
+  "ecosystem-bubbles.png",
+  "ecosystem-crop-lifecycle-atlas-v2.svg",
+  "ecosystem-fish-lifecycle-atlas-v2.svg",
+  "ecosystem-garden-bed-v3.png",
+  "ecosystem-garden-watering-can-v3.png",
+  "ecosystem-night-aquarium-lamp.png",
+  "ecosystem-night-garden-lamp.png",
+  "ecosystem-night-pasture-lamp.png",
+  "ecosystem-reference-pasture.png",
+  "ecosystem-scarecrow.png",
+  "ecosystem-slot-equipment-v3.png",
+  "ecosystem-water-plant.png",
+  "ecosystem-workbench-table-v3.png",
+  "reel-symbols-runtime.png",
+  "scene-base.png",
+]) {
   cpSync(resolve(root, "src/plugin/client/assets", name), resolve(assets, name));
 }
 mkdirSync(companion, { recursive: true });
@@ -118,12 +128,7 @@ assertFiles(lib, [
   "types/index.d.ts.map",
 ]);
 rmSync(staging, { force: true, recursive: true });
-await npmPack(`file:${root}`, {
-  dryRun: false,
-  ignoreScripts: true,
-  offline: true,
-  packDestination: root,
-});
+if (shouldPack) await packOffline();
 assertFiles(lib, [
   "client.js",
   "client.js.map",
@@ -136,6 +141,27 @@ assertFiles(lib, [
   "types/index.d.ts",
   "types/index.d.ts.map",
 ]);
+
+async function packOffline() {
+  const require = createRequire(import.meta.url);
+  const npmPackPath = [
+    process.env.CODEX_PRIMARY_RUNTIME_ROOT === undefined
+      ? ""
+      : resolve(process.env.CODEX_PRIMARY_RUNTIME_ROOT, "dependencies/node/lib/node_modules/npm/node_modules/libnpmpack"),
+    resolve(dirname(process.execPath), "../lib/node_modules/npm/node_modules/libnpmpack"),
+    resolve(dirname(process.execPath), "node_modules/npm/node_modules/libnpmpack"),
+  ].find(existsSync);
+  if (npmPackPath === undefined) {
+    throw new Error("The npm-bundled libnpmpack API is required for the offline package build");
+  }
+  const npmPack = require(npmPackPath);
+  await npmPack(`file:${root}`, {
+    dryRun: false,
+    ignoreScripts: true,
+    offline: true,
+    packDestination: root,
+  });
+}
 
 function copyDeclaration(sourceName, targetName, originalSource) {
   const source = resolve(staging, "types", sourceName);

@@ -40,9 +40,9 @@ describe("Task 6 browser CI and visual contracts", () => {
     const browser = windowsJob.indexOf("npx playwright install chromium");
 
     expect(typecheck).toBeGreaterThan(-1);
-    expect(unit).toBeGreaterThan(typecheck);
-    expect(build).toBeGreaterThan(unit);
-    expect(packageTest).toBeGreaterThan(build);
+    expect(build).toBeGreaterThan(typecheck);
+    expect(unit).toBeGreaterThan(build);
+    expect(packageTest).toBeGreaterThan(unit);
     expect(browser).toBeGreaterThan(packageTest);
   });
 

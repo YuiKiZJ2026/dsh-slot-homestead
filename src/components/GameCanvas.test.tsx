@@ -42,6 +42,18 @@ const PAYOUT_REWARD_CASES: ReadonlyArray<readonly [string, ResolvedReward, boole
     conversionCoins: 3,
     bonusCoins: 3,
   }, true],
+  ["new ecosystem resident", {
+    kind: "ecosystem-item",
+    itemId: "moon-carp",
+    isDuplicate: false,
+    conversionCoins: 0,
+  }, false],
+  ["duplicate ecosystem resident", {
+    kind: "ecosystem-item",
+    itemId: "goldfish",
+    isDuplicate: true,
+    conversionCoins: 3,
+  }, true],
 ];
 
 afterEach(() => {
@@ -497,6 +509,32 @@ describe("GameCanvas", () => {
     );
 
     expect(await screen.findByRole("status")).toHaveTextContent("获得 5 枚硬币");
+  });
+
+  it("reports each settled result to the surrounding experience exactly once", async () => {
+    const onSettledResult = vi.fn();
+    const settled = stateWithSpin("settled");
+    const { rerender } = render(
+      <GameCanvas
+        state={settled}
+        mode="writer"
+        onAnimationEvent={() => undefined}
+        onSettledResult={onSettledResult}
+        loadAssets={neverLoads}
+      />,
+    );
+
+    await waitFor(() => expect(onSettledResult).toHaveBeenCalledOnce());
+    rerender(
+      <GameCanvas
+        state={settled}
+        mode="writer"
+        onAnimationEvent={() => undefined}
+        onSettledResult={onSettledResult}
+        loadAssets={neverLoads}
+      />,
+    );
+    expect(onSettledResult).toHaveBeenCalledOnce();
   });
 
   it("emits each requestAnimationFrame phase boundary once at its exact duration", () => {

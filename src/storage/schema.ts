@@ -1,6 +1,6 @@
 import { z } from "zod";
 import { TABLE_POSITION_IDS } from "../domain/table-positions";
-import type { DateKey, GameState } from "../domain/types";
+import { createInitialEcosystemState, type DateKey, type GameState } from "../domain/types";
 
 const NonNegativeIntegerSchema = z.number().finite().int().nonnegative();
 const IdentifierSchema = z.string().min(1);
@@ -33,6 +33,12 @@ const ResolvedRewardSchema = z.discriminatedUnion("kind", [
     isDuplicate: z.boolean(),
     conversionCoins: NonNegativeIntegerSchema,
     bonusCoins: NonNegativeIntegerSchema,
+  }),
+  z.strictObject({
+    kind: z.literal("ecosystem-item"),
+    itemId: IdentifierSchema,
+    isDuplicate: z.boolean(),
+    conversionCoins: NonNegativeIntegerSchema,
   }),
 ]);
 
@@ -74,6 +80,63 @@ const TablePlacementsSchema = z.array(TablePlacementSchema).max(12).superRefine(
     positions.add(placement.positionId);
   }
 });
+const HabitatIdSchema = z.enum(["aquarium", "garden", "animals"]);
+const LifecycleGrowthSchema = z.number().finite().min(0).max(100);
+const NullableLifecycleTimestampSchema = TimestampSchema.nullable();
+const EcosystemFishLifeSchema = z.strictObject({
+  count: NonNegativeIntegerSchema,
+  growth: LifecycleGrowthSchema,
+  boostedUntil: NullableLifecycleTimestampSchema,
+});
+const EcosystemPlotLifeSchema = z.strictObject({
+  seedId: IdentifierSchema.nullable(),
+  growth: LifecycleGrowthSchema,
+  readyYield: NonNegativeIntegerSchema.max(1),
+  boostedUntil: NullableLifecycleTimestampSchema,
+  generation: NonNegativeIntegerSchema,
+});
+const EcosystemLivestockLifeSchema = z.strictObject({
+  adults: NonNegativeIntegerSchema,
+  juveniles: NonNegativeIntegerSchema,
+  juvenileGrowth: LifecycleGrowthSchema,
+  production: LifecycleGrowthSchema,
+  readyProducts: NonNegativeIntegerSchema.max(9),
+  boostedUntil: NullableLifecycleTimestampSchema,
+  generation: NonNegativeIntegerSchema,
+});
+const EcosystemLifecycleSchema = z.strictObject({
+  lastSimulatedAt: NullableLifecycleTimestampSchema,
+  fish: safeRecord(IdentifierSchema, EcosystemFishLifeSchema),
+  plots: z.strictObject({
+    "1": EcosystemPlotLifeSchema,
+    "2": EcosystemPlotLifeSchema,
+    "3": EcosystemPlotLifeSchema,
+    "4": EcosystemPlotLifeSchema,
+    "5": EcosystemPlotLifeSchema,
+    "6": EcosystemPlotLifeSchema,
+  }),
+  livestock: safeRecord(IdentifierSchema, EcosystemLivestockLifeSchema),
+  produce: safeRecord(IdentifierSchema, NonNegativeIntegerSchema),
+});
+const EcosystemStateSchema = z.strictObject({
+  discovered: UniqueIdentifierArraySchema,
+  selected: z.strictObject({
+    aquarium: IdentifierSchema,
+    garden: IdentifierSchema,
+    animals: IdentifierSchema,
+  }),
+  supplies: z.strictObject({
+    fishFeed: NonNegativeIntegerSchema.max(999),
+    fertilizer: NonNegativeIntegerSchema.max(999),
+    animalFeed: NonNegativeIntegerSchema.max(999),
+  }),
+  progress: z.record(HabitatIdSchema, NonNegativeIntegerSchema.max(100)),
+  milestones: z.record(HabitatIdSchema, NonNegativeIntegerSchema),
+  harmony: NonNegativeIntegerSchema.max(100),
+  lifecycle: EcosystemLifecycleSchema.optional().transform(
+    (value) => value ?? createInitialEcosystemState().lifecycle,
+  ),
+});
 
 export const GameStateSchema: z.ZodType<GameState> = z.strictObject({
   schemaVersion: z.literal(1),
@@ -91,10 +154,12 @@ export const GameStateSchema: z.ZodType<GameState> = z.strictObject({
   tablePlacements: TablePlacementsSchema.optional().transform((placements) => placements ?? []),
   activeSpin: ResolvedSpinSchema.nullable(),
   agentStatus: z.enum(["idle", "working", "completed", "error"]),
+  ecosystem: EcosystemStateSchema.optional().transform((value) => value ?? createInitialEcosystemState()),
   settings: z.strictObject({
     muted: z.boolean(),
     reducedMotion: z.boolean(),
     scale: z.union([z.literal(1), z.literal(2)]),
+    companionScale: z.number().min(0.75).max(1.6).optional(),
   }),
 });
 

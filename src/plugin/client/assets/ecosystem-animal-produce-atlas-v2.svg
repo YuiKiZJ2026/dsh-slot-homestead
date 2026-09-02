@@ -1,0 +1,44 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="600" height="200" viewBox="0 0 600 200" shape-rendering="crispEdges">
+  <style>
+    .ol{stroke:#4b291d;stroke-width:7;stroke-linejoin:miter;stroke-linecap:square}
+    .ol2{stroke:#6b3823;stroke-width:5;stroke-linejoin:miter;stroke-linecap:square}
+    .ink{fill:#291918}.deep{fill:#6b3823}.straw{fill:#b66d26}.straw2{fill:#e5a332}
+    .shell{fill:#f2d7a4}.light{fill:#fff1c7}.blush{fill:#d58462}
+    .fur{fill:#c99662}.fur2{fill:#8f5f43}.pale{fill:#ead2aa}.shadow{fill:#aa805e}.cream{fill:#ffe3a0}
+  </style>
+
+  <!-- Chicken egg, grounded by a small pixel-straw nest. -->
+  <g transform="translate(0 0)">
+    <path class="straw ol2" d="M38 136H58V126H142V136H162V150H148V158H52V152H38Z"/>
+    <rect class="straw2" x="48" y="132" width="104" height="8"/>
+    <path class="shell ol" d="M72 124V84H80V62H90V50H110V54H120V66H128V86H136V126H128V138H116V146H90V142H80V134H72Z"/>
+    <path class="light" d="M88 66H102V74H92V94H84V78H88Z"/>
+    <rect class="blush" x="116" y="112" width="10" height="12"/>
+    <rect class="deep" x="64" y="148" width="72" height="6"/>
+  </g>
+
+  <!-- Newborn lop rabbit: curled body and short folded ears. -->
+  <g transform="translate(200 0)">
+    <path class="pale ol" d="M48 102H58V86H70V74H92V78H106V88H120V96H138V106H148V130H140V142H126V150H72V146H54V138H44V114H48Z"/>
+    <path class="fur ol" d="M68 84L56 52H68L84 76ZM96 80L112 50H124L116 92Z"/>
+    <path class="shadow ol2" d="M92 116H134V140H118V146H92Z"/>
+    <rect class="ink" x="104" y="92" width="9" height="9"/>
+    <rect class="light" x="106" y="92" width="3" height="3"/>
+    <rect class="blush" x="118" y="106" width="8" height="6"/>
+    <rect class="light ol2" x="38" y="116" width="16" height="18"/>
+    <rect class="fur2" x="116" y="138" width="28" height="14"/>
+  </g>
+
+  <!-- Alpaca cria: seated newborn with short legs and soft fleece. -->
+  <g transform="translate(400 0)">
+    <path class="fur ol" d="M38 96H52V84H108V90H124V104H134V136H124V148H108V154H58V150H42V140H34V108H38Z"/>
+    <path class="pale ol" d="M98 90V56H106V42H128V48H140V64H148V98H138V110H120V104H110V90Z"/>
+    <path class="fur2 ol2" d="M52 144H70V164H48ZM96 146H114V164H92Z"/>
+    <path class="pale ol2" d="M36 104L22 92V110L38 120Z"/>
+    <rect class="ink" x="130" y="56" width="9" height="9"/>
+    <rect class="light" x="132" y="56" width="3" height="3"/>
+    <rect class="deep" x="142" y="78" width="10" height="7"/>
+    <path class="cream" d="M52 90H98V100H110V116H94V108H52Z"/>
+    <rect class="shadow" x="72" y="128" width="50" height="16"/>
+  </g>
+</svg>

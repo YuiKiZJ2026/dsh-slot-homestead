@@ -7,6 +7,8 @@ test.skip(
   "Windows-only golden baselines; Linux runs functional and QA screenshots only.",
 );
 
+test.use({ timezoneId: "Asia/Shanghai" });
+
 for (const viewport of [
   { width: 1440, height: 900, name: "1440x900" },
   { width: 1280, height: 720, name: "1280x720" },
@@ -14,6 +16,7 @@ for (const viewport of [
 ]) {
   test(`desktop widget ${viewport.name}`, async ({ page }) => {
     await page.setViewportSize(viewport);
+    await page.clock.setFixedTime(new Date("2026-08-31T22:30:00+08:00"));
     await page.goto("/");
     await waitForCanvasReady(page);
     await expect(

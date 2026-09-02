@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
-import { createInitialState, type GameState } from "../domain/types";
+import { createInitialState, type GameState, type HabitatId } from "../domain/types";
 import type { DshAdapter } from "../dsh/adapter";
 import type { DshEvent } from "../dsh/events";
 import { applyDailyOpen, applyDshEvent } from "../economy/work-rewards";
@@ -7,6 +7,8 @@ import { recoverInterruptedSpin, transitionMachine } from "../game/machine";
 import type { OutcomeKind } from "../game/outcomes";
 import { stableVerificationRoll, type RandomSource } from "../game/rng";
 import { buyCollectible, setCollectibleDisplayed, setCollectiblePlacement } from "../inventory/inventory";
+import { buyEcosystemItem, careForHabitat, collectHabitatProduce } from "../ecosystem/ecosystem";
+import { advanceEcosystemTo } from "../ecosystem/lifecycle";
 import type { TablePositionId } from "../domain/types";
 import {
   RevisionConflictError,
@@ -38,6 +40,8 @@ export interface GameController {
     event: "SPIN_ANIMATION_DONE" | "HIGHLIGHT_DONE" | "PAYOUT_DONE" | "CLEAR_SETTLED_SPIN",
   ): void;
   buy(id: string): void;
+  care(habitat: HabitatId): void;
+  collect(habitat: Extract<HabitatId, "garden" | "animals">): void;
   setDisplayed(id: string, displayed: boolean): void;
   setPlacement(id: string, positionId: TablePositionId | null): void;
   setSettings(patch: Partial<GameState["settings"]>): void;
@@ -84,7 +88,14 @@ export function useGameController(deps: GameControllerDependencies): GameControl
     }
 
     const previous = stateRef.current;
-    const next = transition(previous);
+    const synchronizedEcosystem = advanceEcosystemTo(
+      previous.ecosystem,
+      currentDeps.clock.now(),
+    );
+    const synchronized = sameEcosystem(previous.ecosystem, synchronizedEcosystem)
+      ? previous
+      : { ...previous, ecosystem: synchronizedEcosystem };
+    const next = transition(synchronized);
     if (next === previous) {
       return;
     }
@@ -151,6 +162,22 @@ export function useGameController(deps: GameControllerDependencies): GameControl
     return () => window.removeEventListener("storage", onStorage);
   }, [deps.mode, deps.repository, replaceState]);
 
+  useEffect(() => {
+    if (deps.mode !== "writer") return undefined;
+    const synchronize = (): void => commit((current) => current);
+    const interval = globalThis.setInterval(synchronize, 60_000);
+    const synchronizeIfVisible = (): void => {
+      if (document.visibilityState === "visible") synchronize();
+    };
+    globalThis.addEventListener("focus", synchronize);
+    document.addEventListener("visibilitychange", synchronizeIfVisible);
+    return () => {
+      globalThis.clearInterval(interval);
+      globalThis.removeEventListener("focus", synchronize);
+      document.removeEventListener("visibilitychange", synchronizeIfVisible);
+    };
+  }, [commit, deps.mode]);
+
   const applyMachineEvent = useCallback((event: Parameters<typeof transitionMachine>[1]): void => {
     commit((current) => transitionMachine(current, event, {
       rng: depsRef.current.rng,
@@ -184,6 +211,21 @@ export function useGameController(deps: GameControllerDependencies): GameControl
   const buy = useCallback((id: string): void => {
     commit((current) => {
       const result = buyCollectible(current, id);
+      if (result.ok) return result.state;
+      if (result.reason !== "UNKNOWN_ITEM") return current;
+      const ecosystemResult = buyEcosystemItem(current, id);
+      return ecosystemResult.ok ? ecosystemResult.state : current;
+    });
+  }, [commit]);
+  const care = useCallback((habitat: HabitatId): void => {
+    commit((current) => {
+      const result = careForHabitat(current, habitat, depsRef.current.clock.now());
+      return result.ok ? result.state : current;
+    });
+  }, [commit]);
+  const collect = useCallback((habitat: Extract<HabitatId, "garden" | "animals">): void => {
+    commit((current) => {
+      const result = collectHabitatProduce(current, habitat, depsRef.current.clock.now());
       return result.ok ? result.state : current;
     });
   }, [commit]);
@@ -223,6 +265,8 @@ export function useGameController(deps: GameControllerDependencies): GameControl
     play,
     advanceAnimation,
     buy,
+    care,
+    collect,
     setDisplayed,
     setPlacement,
     setSettings,
@@ -234,7 +278,12 @@ export function useGameController(deps: GameControllerDependencies): GameControl
 function initializeController(deps: GameControllerDependencies): InitializationResult {
   let state = deps.repository.load();
   if (deps.mode !== "writer") {
-    return { state, error: null, frozen: false, complete: true };
+    return {
+      state: { ...state, ecosystem: advanceEcosystemTo(state.ecosystem, deps.clock.now()) },
+      error: null,
+      frozen: false,
+      complete: true,
+    };
   }
 
   const recovered = recoverInterruptedSpin(state);
@@ -246,12 +295,21 @@ function initializeController(deps: GameControllerDependencies): InitializationR
     state = result.state;
   }
 
-  const opened = applyDailyOpen(state, localDateKey(deps.clock.now()));
-  if (opened !== state) {
-    return saveInitializationTransition(deps.repository, state, opened);
+  const now = deps.clock.now();
+  const opened = applyDailyOpen(state, localDateKey(now));
+  const ecosystem = advanceEcosystemTo(opened.ecosystem, now);
+  const initialized = sameEcosystem(opened.ecosystem, ecosystem)
+    ? opened
+    : { ...opened, ecosystem };
+  if (initialized !== state) {
+    return saveInitializationTransition(deps.repository, state, initialized);
   }
 
   return { state, error: null, frozen: false, complete: true };
+}
+
+function sameEcosystem(left: GameState["ecosystem"], right: GameState["ecosystem"]): boolean {
+  return JSON.stringify(left) === JSON.stringify(right);
 }
 
 function saveInitializationTransition(

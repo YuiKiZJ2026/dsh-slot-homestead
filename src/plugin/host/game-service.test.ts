@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { FixedClock } from "../../time/clock";
+import { createInitialEcosystemState } from "../../domain/types";
 import type {
   CommandRequest,
   EligibleTurnUsage,
@@ -48,7 +49,7 @@ class MemoryDomain implements GameDomain {
 
 function state(overrides: Partial<HostState> = {}): HostState {
   return {
-    schemaVersion: 3,
+    schemaVersion: 4,
     revision: 0,
     wallet: 0,
     lastGrantedLocalDate: null,
@@ -61,6 +62,7 @@ function state(overrides: Partial<HostState> = {}): HostState {
     tablePlacements: [],
     settings: { muted: true, reducedMotion: false, scale: 1 },
     pendingSpin: null,
+    ecosystem: createInitialEcosystemState(),
     recentCommands: {},
     ...overrides,
   };
@@ -80,13 +82,22 @@ function request(
   } as Extract<CommandRequest, { type: typeof type }>;
 }
 
-function service(domain: MemoryDomain, clock = new FixedClock(NOW)): GameService {
+function service(
+  domain: MemoryDomain,
+  clock = new FixedClock(NOW),
+  rng: { next(): number } = { next: () => 0.7 },
+): GameService {
   let nextId = 1;
   return new GameService(domain, {
     clock,
-    rng: { next: () => 0.7 },
+    rng,
     createId: () => `spin-${nextId++}`,
   });
+}
+
+function randomSequence(...values: number[]) {
+  let index = 0;
+  return { next: () => values[index++] ?? values.at(-1) ?? 0 };
 }
 
 function usage(sequence: number, outputTokens = 1_500): EligibleTurnUsage {
@@ -140,7 +151,171 @@ function sessionHistoryFor(sessionId: string, ...sequences: number[]): SessionLi
   };
 }
 
+function moveSessionHistoryTo(session: SessionLike, baseTime: Date): SessionLike {
+  const firstTime = session.events[0]?.time ?? session.header.createdAt;
+  const offset = baseTime.getTime() - firstTime;
+  return {
+    ...session,
+    header: { ...session.header, createdAt: session.header.createdAt + offset },
+    events: session.events.map((event) => ({ ...event, time: event.time + offset })),
+  };
+}
+
 describe("authoritative game service", () => {
+  it("projects real-time ecology without writing on every polling snapshot", async () => {
+    const clock = new FixedClock(NOW);
+    const seeded = createInitialEcosystemState();
+    seeded.lifecycle.lastSimulatedAt = NOW.toISOString();
+    const domain = new MemoryDomain(state({ ecosystem: seeded }));
+    const game = service(domain, clock);
+
+    clock.set(new Date(NOW.getTime() + 6 * 60 * 60 * 1_000));
+    const first = await game.getSnapshot("session-1");
+    const second = await game.getSnapshot("session-1");
+
+    expect(first.ecosystem.lifecycle.fish.goldfish?.growth).toBe(24);
+    expect(second.ecosystem.lifecycle).toEqual(first.ecosystem.lifecycle);
+    expect(domain.writeCount).toBe(0);
+    expect(domain.persisted().ecosystem.lifecycle.fish.goldfish?.growth).toBe(0);
+  });
+
+  it("does not backfill token rewards from session history older than seven days", async () => {
+    const domain = new MemoryDomain(state());
+    const game = service(domain);
+    const oldHistory = moveSessionHistoryTo(
+      sessionHistory(13, 23),
+      new Date(NOW.getTime() - 8 * 24 * 60 * 60 * 1_000),
+    );
+
+    await game.adoptSession(oldHistory);
+    await game.completeUsageBootstrap();
+
+    expect(domain.persisted()).toMatchObject({
+      revision: 0,
+      wallet: 0,
+      tokenEnergy: { progress: 0, dailyCoins: {} },
+      tokenUsageWatermarks: {},
+    });
+    expect(domain.writeCount).toBe(0);
+  });
+
+  it("accepts a new turn after an old session was skipped during bootstrap", async () => {
+    const domain = new MemoryDomain(state());
+    const game = service(domain);
+    const oldHistory = moveSessionHistoryTo(
+      sessionHistory(13),
+      new Date(NOW.getTime() - 8 * 24 * 60 * 60 * 1_000),
+    );
+
+    await game.adoptSession(oldHistory);
+    await game.completeUsageBootstrap();
+
+    const currentHistory = sessionHistory(23);
+    for (const event of currentHistory.events) {
+      await game.acceptSessionEvent(currentHistory, event);
+    }
+
+    expect(domain.persisted()).toMatchObject({
+      revision: 1,
+      wallet: 0,
+      tokenEnergy: { progress: 1_500 },
+      tokenUsageWatermarks: { "session-1": 23 },
+    });
+  });
+
+  it("settles elapsed time before care and collection, then receipts exactly one crop", async () => {
+    const clock = new FixedClock(NOW);
+    const domain = new MemoryDomain(state());
+    const game = service(domain, clock);
+    const base = { sessionId: "session-1" };
+
+    const cared = await game.command({
+      ...base,
+      type: "careHabitat",
+      habitat: "garden",
+      commandId: "00000000-0000-4000-8000-000000000251",
+      expectedRevision: 0,
+      issuedAt: clock.now().toISOString(),
+    });
+    expect(cared).toMatchObject({ status: 200 });
+
+    clock.set(new Date(NOW.getTime() + 24 * 60 * 60 * 1_000));
+    const mature = await game.getSnapshot("session-1");
+    expect(mature.ecosystem.lifecycle.plots["1"].readyYield).toBe(1);
+
+    const collect = {
+      ...base,
+      type: "collectHabitat" as const,
+      habitat: "garden" as const,
+      commandId: "00000000-0000-4000-8000-000000000252",
+      expectedRevision: 1,
+      issuedAt: clock.now().toISOString(),
+    };
+    const first = await game.command(collect);
+    const retry = await game.command({ ...collect, expectedRevision: 99 });
+    expect(first).toMatchObject({
+      status: 200,
+      snapshot: {
+        wallet: 3,
+        ecosystem: { lifecycle: { produce: { carrot: 1 } } },
+      },
+    });
+    expect(retry).toEqual(first);
+    expect(domain.persisted()).toMatchObject({ wallet: 3 });
+
+    expect(await game.command({
+      ...collect,
+      commandId: "00000000-0000-4000-8000-000000000253",
+      expectedRevision: 2,
+    })).toMatchObject({ status: 409, errorCode: "nothing-to-collect" });
+  });
+
+  it("uses the authoritative wallet for residents, supplies, and habitat care", async () => {
+    const domain = new MemoryDomain(state({ wallet: 20 }));
+    const game = service(domain);
+    const base = {
+      sessionId: "session-1",
+      issuedAt: NOW.toISOString(),
+    };
+
+    const resident = await game.command({
+      ...base,
+      type: "buyItem",
+      itemId: "clownfish",
+      commandId: "00000000-0000-4000-8000-000000000201",
+      expectedRevision: 0,
+    });
+    const supply = await game.command({
+      ...base,
+      type: "buyItem",
+      itemId: "fish-feed",
+      commandId: "00000000-0000-4000-8000-000000000202",
+      expectedRevision: 1,
+    });
+    const care = await game.command({
+      ...base,
+      type: "careHabitat",
+      habitat: "aquarium",
+      commandId: "00000000-0000-4000-8000-000000000203",
+      expectedRevision: 2,
+    });
+
+    expect(resident.status).toBe(200);
+    expect(supply.status).toBe(200);
+    expect(care.status).toBe(200);
+    expect(domain.persisted()).toMatchObject({
+      wallet: 6,
+      ecosystem: {
+        discovered: expect.arrayContaining(["clownfish"]),
+        selected: { aquarium: "clownfish" },
+        supplies: { fishFeed: 1 },
+        progress: { aquarium: 0 },
+        lifecycle: {
+          fish: { clownfish: { growth: 0, boostedUntil: "2026-08-26T10:00:00.000Z" } },
+        },
+      },
+    });
+  });
   it("persists chosen table positions and returns a replaced occupant to storage atomically", async () => {
     const domain = new MemoryDomain(state({ inventory: ["plant", "crystal"] }));
     const game = service(domain);
@@ -414,7 +589,7 @@ describe("authoritative game service", () => {
     await game.completeUsageBootstrap();
 
     expect(domain.persisted()).toMatchObject({
-      schemaVersion: 3,
+      schemaVersion: 4,
       revision: 3,
       wallet: 0,
       tokenEnergy: { progress: 3_000 },
@@ -564,6 +739,59 @@ describe("authoritative game service", () => {
     });
     expect(retry).toEqual(first);
     expect(domain.persisted()).toMatchObject({ revision: 3, wallet: 6, pendingSpin: null });
+  });
+
+  it("runs a real consumable spin through Host payment, lever, settlement, and pity", async () => {
+    const domain = new MemoryDomain(state({ wallet: 2, pityCount: 9 }));
+    const game = service(domain, new FixedClock(NOW), randomSequence(0.8, 0.99));
+
+    let result = await game.command(request("insertCoin", 701));
+    expect(result).toMatchObject({
+      status: 200,
+      snapshot: {
+        wallet: 1,
+        pityCount: 9,
+        pendingSpin: {
+          id: "spin-1",
+          stage: "paid",
+          reward: {
+            kind: "ecosystem-item",
+            itemId: "animal-feed",
+            isDuplicate: false,
+          },
+          pityAfter: 10,
+        },
+      },
+    });
+
+    result = await game.command({
+      ...request("insertCoin", 702, 1),
+      type: "pullLever",
+      spinId: "spin-1",
+    });
+    expect(result).toMatchObject({ status: 200, snapshot: { pendingSpin: { stage: "spinning" } } });
+
+    result = await game.command({
+      ...request("insertCoin", 703, 2),
+      type: "settleSpin",
+      spinId: "spin-1",
+    });
+    expect(result).toMatchObject({
+      status: 200,
+      snapshot: {
+        wallet: 1,
+        pityCount: 10,
+        pendingSpin: null,
+        ecosystem: { supplies: { animalFeed: 2 } },
+      },
+    });
+    expect(domain.persisted()).toMatchObject({
+      revision: 3,
+      wallet: 1,
+      pityCount: 10,
+      pendingSpin: null,
+      ecosystem: { supplies: { animalFeed: 2 } },
+    });
   });
 
   it("grants three coins once per later local date and rejects clock rollback", async () => {

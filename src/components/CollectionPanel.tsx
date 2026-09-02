@@ -1,5 +1,6 @@
 import { type CSSProperties, type DragEvent as ReactDragEvent } from "react";
 import { COLLECTIBLES } from "../domain/catalog";
+import { activeCollectibleCombos, closestCollectibleCombo } from "../domain/collectible-combos";
 import { legacyPlacements } from "../domain/table-positions";
 import type { CollectibleDefinition, GameState, Rarity, TablePositionId } from "../domain/types";
 import { ASSET_FRAMES } from "../game/renderer/assets";
@@ -47,6 +48,8 @@ export function CollectionPanel({
     : legacyPlacements(state.displayedCollectibles);
   const placementByItem = new Map(placements.map((placement) => [placement.itemId, placement]));
   const starryProgress = state.ownedCollectibles.filter((id) => STARRY_IDS.has(id)).length;
+  const activeCombos = activeCollectibleCombos(state);
+  const closestCombo = closestCollectibleCombo(state);
   const setPlacement = (itemId: string, positionId: TablePositionId | null): void => {
     if (onSetPlacement !== undefined) {
       onSetPlacement(itemId, positionId);
@@ -66,6 +69,11 @@ export function CollectionPanel({
     <section className="utility-panel collection-panel" role="dialog" aria-label="收藏盒">
       <PanelHeader title="收藏盒" closeLabel="关闭收藏盒" onClose={onClose} />
       <p className="set-progress">抽到的收藏品会先存放在这里 · 星夜观测 {starryProgress} / 3</p>
+      {activeCombos.length > 0 ? (
+        <p className="combo-progress">已点亮：{activeCombos.map((combo) => combo.name).join("、")}</p>
+      ) : closestCombo !== null && closestCombo.displayedCount > 0 ? (
+        <p className="combo-progress">组合提示：{closestCombo.combo.name} {closestCombo.displayedCount} / {closestCombo.totalCount}</p>
+      ) : null}
       <ul
         className="collectible-grid"
         role="grid"

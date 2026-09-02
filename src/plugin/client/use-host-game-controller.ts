@@ -1,14 +1,17 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { AnimationBoundaryEvent } from "../../components/GameCanvas";
-import { createInitialState, type GameSettings, type GameState, type ResolvedSpin, type TablePositionId } from "../../domain/types";
+import { createInitialState, type GameSettings, type GameState, type HabitatId, type ResolvedSpin, type TablePositionId } from "../../domain/types";
 import type { CommandRequest, CommandResult, PublicSnapshot } from "../shared/contracts";
 import type { GameApi } from "./api";
 
 const POLL_INTERVAL_MS = 2_000;
+const DEFAULT_REQUEST_TIMEOUT_MS = 10_000;
 type CommandPayload =
   | { type: "claimDaily" | "insertCoin" }
   | { type: "pullLever" | "settleSpin"; spinId: string }
   | { type: "buyItem"; itemId: string }
+  | { type: "careHabitat"; habitat: HabitatId }
+  | { type: "collectHabitat"; habitat: Extract<HabitatId, "garden" | "animals"> }
   | { type: "setDisplay"; itemId: string; displayed: boolean }
   | { type: "setPlacement"; itemId: string; positionId: TablePositionId | null }
   | { type: "updateSettings"; patch: Partial<GameSettings> };
@@ -18,6 +21,7 @@ export interface HostGameControllerOptions {
   sessionId: string;
   createCommandId?: () => string;
   now?: () => Date;
+  requestTimeoutMs?: number;
 }
 
 export interface HostGameController {
@@ -31,6 +35,8 @@ export interface HostGameController {
   pullLever(): Promise<void>;
   play(): Promise<void>;
   buy(itemId: string): Promise<void>;
+  care(habitat: HabitatId): Promise<void>;
+  collect(habitat: Extract<HabitatId, "garden" | "animals">): Promise<void>;
   setDisplayed(itemId: string, displayed: boolean): Promise<void>;
   setPlacement(itemId: string, positionId: TablePositionId | null): Promise<void>;
   setSettings(patch: Partial<GameSettings>): Promise<void>;
@@ -42,6 +48,7 @@ export function useHostGameController({
   sessionId,
   createCommandId = defaultCommandId,
   now = defaultNow,
+  requestTimeoutMs = DEFAULT_REQUEST_TIMEOUT_MS,
 }: HostGameControllerOptions): HostGameController {
   const [snapshot, setSnapshot] = useState<PublicSnapshot | null>(null);
   const [visualSpin, setVisualSpin] = useState<ResolvedSpin | null>(null);
@@ -52,14 +59,21 @@ export function useHostGameController({
   const visualSpinRef = useRef(visualSpin);
   const uncertainSettlementRef = useRef<ResolvedSpin | null>(null);
   const commandPendingRef = useRef(false);
+  const refreshInFlightRef = useRef<Promise<void> | null>(null);
   const mountedRef = useRef(false);
   const controllersRef = useRef(new Set<AbortController>());
+  const effectiveRequestTimeoutMs = normalizeRequestTimeout(requestTimeoutMs);
 
   snapshotRef.current = snapshot;
   visualSpinRef.current = visualSpin;
 
   const adoptSnapshot = useCallback((next: PublicSnapshot): boolean => {
     if (snapshotRef.current !== null && next.revision < snapshotRef.current.revision) return false;
+    if (
+      snapshotRef.current !== null &&
+      next.revision === snapshotRef.current.revision &&
+      ecosystemTimestamp(next) < ecosystemTimestamp(snapshotRef.current)
+    ) return false;
     snapshotRef.current = next;
     setSnapshot(next);
     setOffline(false);
@@ -117,13 +131,18 @@ export function useHostGameController({
         createCommandId(),
         now().toISOString(),
       );
-      const result = await api.command(request, controller.signal);
+      const result = await awaitHostRequest(
+        controller,
+        effectiveRequestTimeoutMs,
+        "command",
+        () => api.command(request, controller.signal),
+      );
       if (!mountedRef.current) return result;
       adoptSnapshot(result.snapshot);
       setError(result.status === 409 ? result.errorCode : null);
       return result;
     } catch (cause) {
-      if (mountedRef.current && !controller.signal.aborted) {
+      if (mountedRef.current && shouldReportFailure(cause, controller.signal)) {
         setOffline(true);
         setError(messageFor(cause));
       }
@@ -133,28 +152,45 @@ export function useHostGameController({
       commandPendingRef.current = false;
       if (mountedRef.current) setCommandPending(false);
     }
-  }, [adoptSnapshot, api, createCommandId, now, sessionId]);
+  }, [adoptSnapshot, api, createCommandId, effectiveRequestTimeoutMs, now, sessionId]);
 
-  const refresh = useCallback(async (): Promise<void> => {
+  const refresh = useCallback((): Promise<void> => {
+    const activeRefresh = refreshInFlightRef.current;
+    if (activeRefresh !== null) return activeRefresh;
+
     const controller = new AbortController();
     controllersRef.current.add(controller);
-    try {
-      const next = await api.getSnapshot(sessionId, controller.signal);
-      if (!mountedRef.current) return;
-      if (!adoptSnapshot(next)) return;
-      setError(null);
-      if (shouldClaimDaily(next)) {
-        await executeCommand({ type: "claimDaily" }, next);
+    const task = (async (): Promise<void> => {
+      try {
+        const next = await awaitHostRequest(
+          controller,
+          effectiveRequestTimeoutMs,
+          "refresh",
+          () => api.getSnapshot(sessionId, controller.signal),
+        );
+        if (!mountedRef.current) return;
+        if (!adoptSnapshot(next)) return;
+        setError(null);
+        if (shouldClaimDaily(next)) {
+          await executeCommand({ type: "claimDaily" }, next);
+        }
+      } catch (cause) {
+        if (mountedRef.current && shouldReportFailure(cause, controller.signal)) {
+          setOffline(true);
+          setError(messageFor(cause));
+        }
+      } finally {
+        controllersRef.current.delete(controller);
       }
-    } catch (cause) {
-      if (mountedRef.current && !controller.signal.aborted) {
-        setOffline(true);
-        setError(messageFor(cause));
+    })();
+    refreshInFlightRef.current = task;
+    void task.then(() => {
+      if (refreshInFlightRef.current === task) {
+        refreshInFlightRef.current = null;
       }
-    } finally {
-      controllersRef.current.delete(controller);
-    }
-  }, [adoptSnapshot, api, executeCommand, sessionId]);
+    });
+    return task;
+  }, [adoptSnapshot, api, effectiveRequestTimeoutMs, executeCommand, sessionId]);
 
   useEffect(() => {
     mountedRef.current = true;
@@ -204,6 +240,16 @@ export function useHostGameController({
 
   const buy = useCallback(async (itemId: string): Promise<void> => {
     await executeCommand({ type: "buyItem", itemId });
+  }, [executeCommand]);
+
+  const care = useCallback(async (habitat: HabitatId): Promise<void> => {
+    await executeCommand({ type: "careHabitat", habitat });
+  }, [executeCommand]);
+
+  const collect = useCallback(async (
+    habitat: Extract<HabitatId, "garden" | "animals">,
+  ): Promise<void> => {
+    await executeCommand({ type: "collectHabitat", habitat });
   }, [executeCommand]);
 
   const setDisplayed = useCallback(async (itemId: string, displayed: boolean): Promise<void> => {
@@ -276,11 +322,20 @@ export function useHostGameController({
     pullLever,
     play,
     buy,
+    care,
+    collect,
     setDisplayed,
     setPlacement,
     setSettings,
     advanceAnimation,
   };
+}
+
+function ecosystemTimestamp(snapshot: PublicSnapshot): number {
+  const value = snapshot.ecosystem.lifecycle.lastSimulatedAt;
+  if (value === null) return Number.NEGATIVE_INFINITY;
+  const timestamp = Date.parse(value);
+  return Number.isFinite(timestamp) ? timestamp : Number.NEGATIVE_INFINITY;
 }
 
 function shouldClaimDaily(snapshot: PublicSnapshot): boolean {
@@ -302,6 +357,8 @@ function makeCommandRequest(
     case "pullLever": return { ...base, type: "pullLever", spinId: payload.spinId };
     case "settleSpin": return { ...base, type: "settleSpin", spinId: payload.spinId };
     case "buyItem": return { ...base, type: "buyItem", itemId: payload.itemId };
+    case "careHabitat": return { ...base, type: "careHabitat", habitat: payload.habitat };
+    case "collectHabitat": return { ...base, type: "collectHabitat", habitat: payload.habitat };
     case "setDisplay": return {
       ...base,
       type: "setDisplay",
@@ -334,6 +391,7 @@ function gameStateFrom(snapshot: PublicSnapshot | null, visualSpin: ResolvedSpin
   state.tablePlacements = snapshot.tablePlacements === undefined
     ? []
     : snapshot.tablePlacements.map((placement) => ({ ...placement }));
+  state.ecosystem = structuredClone(snapshot.ecosystem);
   state.activeSpin = visualSpin;
   state.agentStatus = snapshot.agentStatus;
   state.settings = { ...snapshot.settings };
@@ -355,6 +413,69 @@ function defaultCommandId(): string {
 
 function defaultNow(): Date {
   return new Date();
+}
+
+class HostRequestTimeoutError extends Error {
+  constructor(kind: "command" | "refresh", timeoutMs: number) {
+    super(`DSH Host ${kind} timed out after ${timeoutMs} ms`);
+    this.name = "HostRequestTimeoutError";
+  }
+}
+
+function normalizeRequestTimeout(timeoutMs: number): number {
+  return Number.isFinite(timeoutMs) && timeoutMs > 0
+    ? Math.floor(timeoutMs)
+    : DEFAULT_REQUEST_TIMEOUT_MS;
+}
+
+function awaitHostRequest<T>(
+  controller: AbortController,
+  timeoutMs: number,
+  kind: "command" | "refresh",
+  request: () => Promise<T>,
+): Promise<T> {
+  return new Promise<T>((resolve, reject) => {
+    let settled = false;
+    let timeout: ReturnType<typeof globalThis.setTimeout> | null = null;
+
+    const settle = (complete: () => void): void => {
+      if (settled) return;
+      settled = true;
+      if (timeout !== null) globalThis.clearTimeout(timeout);
+      controller.signal.removeEventListener("abort", onAbort);
+      complete();
+    };
+    const onAbort = (): void => {
+      const reason = controller.signal.reason;
+      settle(() => {
+        reject(reason instanceof Error ? reason : new Error("DSH Host request aborted"));
+      });
+    };
+
+    controller.signal.addEventListener("abort", onAbort, { once: true });
+    if (controller.signal.aborted) {
+      onAbort();
+      return;
+    }
+
+    timeout = globalThis.setTimeout(() => {
+      const error = new HostRequestTimeoutError(kind, timeoutMs);
+      controller.abort(error);
+    }, timeoutMs);
+
+    try {
+      request().then(
+        (value) => { settle(() => { resolve(value); }); },
+        (cause: unknown) => { settle(() => { reject(cause); }); },
+      );
+    } catch (cause) {
+      settle(() => { reject(cause); });
+    }
+  });
+}
+
+function shouldReportFailure(cause: unknown, signal: AbortSignal): boolean {
+  return cause instanceof HostRequestTimeoutError || !signal.aborted;
 }
 
 function messageFor(cause: unknown): string {

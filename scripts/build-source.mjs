@@ -17,6 +17,7 @@ const INCLUDED_ROOTS = new Set([
 const INCLUDED_FILES = new Set([
   ".gitattributes",
   ".gitignore",
+  "ASSETS.md",
   "CHANGELOG.md",
   "CONTRIBUTING.md",
   "LICENSE",
@@ -47,7 +48,9 @@ const EXCLUDED_ROOTS = new Set([
   "test-results",
   "tmp",
 ]);
+const EXCLUDED_PREFIXES = ["docs/qa/", "scripts/__pycache__/"];
 const REQUIRED_FILES = [
+  "ASSETS.md",
   "LICENSE",
   "README.md",
   "cordis.patch.yml",
@@ -94,7 +97,12 @@ export function validateTrackedPaths(paths) {
     seen.add(path);
 
     const root = path.split("/", 1)[0];
-    if (EXCLUDED_ROOTS.has(root) || path.endsWith(".tgz")) continue;
+    if (
+      EXCLUDED_ROOTS.has(root) ||
+      EXCLUDED_PREFIXES.some((prefix) => path.startsWith(prefix)) ||
+      (path.startsWith("public/assets/") && path.endsWith("-source.png")) ||
+      path.endsWith(".tgz")
+    ) continue;
     if (INCLUDED_FILES.has(path) || INCLUDED_ROOTS.has(root)) included.push(path);
     else unexpected.push(path);
   }

@@ -1,12 +1,18 @@
 import { useEffect, useRef, useState, type CSSProperties } from "react";
 import { CollectionPanel } from "../components/CollectionPanel";
+import { DaylightStatus } from "../components/DaylightStatus";
+import { EcosystemScene } from "../components/EcosystemScene";
 import { DemoPanel } from "../components/DemoPanel";
 import { GameCanvas } from "../components/GameCanvas";
+import { NightSky } from "../components/NightSky";
 import { SettingsPanel, useDoubleScaleAvailability } from "../components/SettingsPanel";
 import { ShopPanel } from "../components/ShopPanel";
+import { SpinResultCard } from "../components/SpinResultCard";
+import { WorkbenchCommandBar, WorkbenchToolTray, type WorkbenchUtilityPanel } from "../components/WorkbenchCommandBar";
 import type { DshAdapter } from "../dsh/adapter";
 import type { DshDemoControls } from "../dsh/demo-controls";
 import { MockDshAdapter } from "../dsh/mock-adapter";
+import type { ResolvedSpin } from "../domain/types";
 import { mathRandomSource } from "../game/rng";
 import { hasStarryNightTheme } from "../inventory/inventory";
 import { StateRepository } from "../storage/repository";
@@ -15,10 +21,12 @@ import {
   type LockManagerLike,
   type WriterMode,
 } from "../storage/writer-lock";
-import { FixedClock, SystemClock, type Clock } from "../time/clock";
+import { OffsetSystemClock, SystemClock, type Clock } from "../time/clock";
+import { useDayPhase } from "../time/use-day-phase";
+import { CONTROL_DECK_RENDER_HEIGHT, WIDGET_RENDER_HEIGHT, WIDGET_RENDER_WIDTH } from "../ui/widget-layout";
 import { useGameController } from "./use-game-controller";
 
-type UtilityPanel = "collection" | "shop" | "settings";
+type UtilityPanel = WorkbenchUtilityPanel;
 
 export interface AppRuntime {
   repository: StateRepository;
@@ -30,10 +38,17 @@ export interface AppRuntime {
 
 export interface AppProps {
   createRuntime?: () => AppRuntime;
+  lightingClock?: Clock;
 }
 
-export function App({ createRuntime = createDefaultRuntime }: AppProps = {}) {
+const DEFAULT_LIGHTING_CLOCK = new SystemClock();
+
+export function App({
+  createRuntime = createDefaultRuntime,
+  lightingClock = DEFAULT_LIGHTING_CLOCK,
+}: AppProps = {}) {
   const [runtime] = useState(createRuntime);
+  const dayPhase = useDayPhase(lightingClock);
   const demoControls = runtime.demoControls;
   const mode = useWriterMode(browserLockManager());
   const controller = useGameController({
@@ -49,6 +64,7 @@ export function App({ createRuntime = createDefaultRuntime }: AppProps = {}) {
   });
   const [demoOpen, setDemoOpen] = useState(false);
   const [utilityPanel, setUtilityPanel] = useState<UtilityPanel | null>(null);
+  const [lastSpinResult, setLastSpinResult] = useState<ResolvedSpin | null>(null);
   const doubleScaleAvailable = useDoubleScaleAvailability();
   const scale = controller.state.settings.scale === 2 && doubleScaleAvailable ? 2 : 1;
   const currentLedger = controller.state.lastAwardDate === null
@@ -56,14 +72,18 @@ export function App({ createRuntime = createDefaultRuntime }: AppProps = {}) {
     : controller.state.dailyLedgers[controller.state.lastAwardDate];
   const desktopStyle = {
     "--widget-scale": scale,
-    "--widget-width": `${384 * scale}px`,
-    "--widget-height": `${288 * scale}px`,
+    "--widget-width": `${WIDGET_RENDER_WIDTH * scale}px`,
+    "--widget-height": `${WIDGET_RENDER_HEIGHT * scale}px`,
+    "--control-deck-height": `${CONTROL_DECK_RENDER_HEIGHT * scale}px`,
   } as CSSProperties;
-  const desktopClass = hasStarryNightTheme(controller.state)
-    ? "desktop desktop--starry"
-    : "desktop";
+  const desktopClass = [
+    "desktop",
+    hasStarryNightTheme(controller.state) ? "desktop--starry" : "",
+    utilityPanel !== null || lastSpinResult !== null ? "has-utility-panel" : "",
+  ].filter(Boolean).join(" ");
 
   const toggleUtilityPanel = (panel: UtilityPanel): void => {
+    setLastSpinResult(null);
     setUtilityPanel((current) => current === panel ? null : panel);
   };
 
@@ -73,8 +93,10 @@ export function App({ createRuntime = createDefaultRuntime }: AppProps = {}) {
       style={desktopStyle}
       role="application"
       aria-label="DSH 桌面老虎机"
+      data-day-phase={dayPhase}
     >
       <div className="desktop__ambient" aria-hidden="true" />
+      <DaylightStatus phase={dayPhase} />
 
       <div className="wallet-status" aria-live="polite">
         <span>钱包</span>
@@ -119,26 +141,18 @@ export function App({ createRuntime = createDefaultRuntime }: AppProps = {}) {
         </>
       )}
 
-      <nav className="widget-launchers" aria-label="老虎机工具">
-        <button
-          type="button"
-          className="pixel-button"
-          aria-expanded={utilityPanel === "collection"}
-          onClick={() => toggleUtilityPanel("collection")}
-        >打开收藏盒</button>
-        <button
-          type="button"
-          className="pixel-button"
-          aria-expanded={utilityPanel === "shop"}
-          onClick={() => toggleUtilityPanel("shop")}
-        >打开商店</button>
-        <button
-          type="button"
-          className="pixel-button"
-          aria-expanded={utilityPanel === "settings"}
-          onClick={() => toggleUtilityPanel("settings")}
-        >打开设置</button>
-      </nav>
+      {demoControls !== undefined && mode === "readonly" ? (
+        <aside
+          className="readonly-sandbox-notice"
+          role="status"
+          aria-label="只读测试提示"
+        >
+          <span>当前页是只读副本，经济操作已停用。</span>
+          <a className="pixel-button readonly-sandbox-notice__link" href="/native-preview.html">
+            打开独立测试沙盒
+          </a>
+        </aside>
+      ) : null}
 
       <div className="utility-panel-slot">
         <CollectionPanel
@@ -160,25 +174,70 @@ export function App({ createRuntime = createDefaultRuntime }: AppProps = {}) {
           onChange={controller.setSettings}
           allowDoubleScale={doubleScaleAvailable}
         />
+        {utilityPanel === null && lastSpinResult !== null ? (
+          <SpinResultCard
+            spin={lastSpinResult}
+            state={controller.state}
+            onDismiss={() => setLastSpinResult(null)}
+            onPlace={controller.setPlacement}
+          />
+        ) : null}
       </div>
 
-      <section className="slot-widget" data-scale={scale} aria-label="老虎机微缩场景">
-        <GameCanvas
+      <section
+        className="ecosystem-widget"
+        data-scale={scale}
+        data-composition="single-workbench-v3"
+        aria-label="老虎机与养成生态"
+      >
+        <EcosystemScene
           state={controller.state}
-          mode={mode}
-          error={controller.error}
-          onPlay={controller.play}
-          onSetPlacement={controller.setPlacement}
-          onAnimationEvent={controller.advanceAnimation}
+          dayPhase={dayPhase}
+          onCare={controller.care}
+          onCollect={controller.collect}
+          mutationsDisabled={mode !== "writer"}
+          nightSky={(
+            <>
+              <NightSky />
+              <span
+                className="ecosystem-widget__moonlight"
+                data-night-moonlight="workbench"
+                aria-hidden="true"
+              />
+            </>
+          )}
+          commandBar={(
+            <WorkbenchCommandBar
+              state={controller.state}
+            />
+          )}
         />
+        <div className="slot-widget" aria-label="老虎机微缩场景">
+          <GameCanvas
+            state={controller.state}
+            mode={mode}
+            error={controller.error}
+            onPlay={() => {
+              setLastSpinResult(null);
+              controller.play();
+            }}
+            onSetPlacement={controller.setPlacement}
+            onSettledResult={setLastSpinResult}
+            onAnimationEvent={controller.advanceAnimation}
+            includeSceneBase={false}
+          />
+          <WorkbenchToolTray
+            activePanel={utilityPanel}
+            onToggle={toggleUtilityPanel}
+          />
+        </div>
       </section>
     </main>
   );
 }
 
 function createDefaultRuntime(): AppRuntime {
-  const systemClock = new SystemClock();
-  const clock = new FixedClock(systemClock.now());
+  const clock = new OffsetSystemClock();
   const createId = (): string => {
     if (typeof globalThis.crypto?.randomUUID === "function") {
       return globalThis.crypto.randomUUID();

@@ -1,6 +1,7 @@
 import { cleanup, render, screen, waitFor } from "@testing-library/react";
 import { createElement, type ComponentType } from "react";
 import { afterEach, describe, expect, it, vi } from "vitest";
+import { createInitialEcosystemState } from "../../domain/types";
 import type { PublicSnapshot } from "../shared/contracts";
 import { apply, inject } from "./index";
 import { PLUGIN_STYLE } from "./style";
@@ -85,5 +86,6 @@ function snapshot(): PublicSnapshot {
     pendingSpin: null,
     agentStatus: "idle",
     capabilities: { commands: true },
+    ecosystem: createInitialEcosystemState(),
   };
 }

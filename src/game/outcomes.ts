@@ -8,6 +8,7 @@ import type {
   ResolvedSpin,
 } from "../domain/types";
 import type { RandomSource } from "./rng";
+import { ECOSYSTEM_ITEMS, type EcosystemItemDefinition } from "../ecosystem/catalog";
 
 const OUTCOME_BANDS = [
   [0, 0.45, "none"],
@@ -179,9 +180,21 @@ function resolveOutcome(
     case "common":
     case "rare":
     case "set": {
+      const selectionRoll = isForced ? 0 : rng?.next() ?? 0;
+      if (kind === "common" && !isForced && selectionRoll >= 0.75) {
+        const habitatItem = pickByVariant(ECOSYSTEM_ITEMS, (selectionRoll - 0.75) / 0.25);
+        const isDuplicate = habitatItem.kind === "resident" &&
+          state.ecosystem.discovered.includes(habitatItem.id);
+        return {
+          kind,
+          reward: ecosystemReward(habitatItem, isDuplicate),
+          pityAfter: habitatItem.kind === "supply" || isDuplicate ? nextPity(state) : 0,
+          variant,
+        };
+      }
       const item = isForced
         ? firstUnownedOrFirst(state, kind)
-        : pickByVariant(itemsForOutcome(kind), rng?.next() ?? 0);
+        : pickByVariant(itemsForOutcome(kind), selectionRoll);
       const isDuplicate = state.ownedCollectibles.includes(item.id);
 
       return {
@@ -214,6 +227,15 @@ function resolveOutcome(
       };
     }
   }
+}
+
+function ecosystemReward(item: EcosystemItemDefinition, isDuplicate: boolean): ResolvedReward {
+  return {
+    kind: "ecosystem-item",
+    itemId: item.id,
+    isDuplicate,
+    conversionCoins: isDuplicate ? item.duplicateCoins : 0,
+  };
 }
 
 function outcomeForRoll(roll: number): OutcomeKind {
