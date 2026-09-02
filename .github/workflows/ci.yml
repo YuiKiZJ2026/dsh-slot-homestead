@@ -57,6 +57,7 @@ jobs:
       - name: Install pinned official DSH CLI
         run: |
           mkdir -p "$RUNNER_TEMP/dsh-cli"
+          cp .github/dsh-cli-pnpm-workspace.yaml "$RUNNER_TEMP/dsh-cli/pnpm-workspace.yaml"
           pnpm add --dir "$RUNNER_TEMP/dsh-cli" --save-exact @deepseek-ai/dsh@0.1.1-rc.2
       - run: node "$RUNNER_TEMP/dsh-cli/node_modules/@deepseek-ai/dsh/lib/bin.js" --version
       - name: Build installable plugin package
