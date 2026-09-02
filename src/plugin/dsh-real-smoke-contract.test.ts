@@ -19,11 +19,16 @@ describe("real DSH CI gate contract", () => {
     expect(workflow).toContain("real-dsh-smoke:");
     expect(workflow).toContain("runs-on: ubuntu-24.04");
     expect(workflow).toMatch(/pnpm\/action-setup@v4[\s\S]*version:\s*11\.7\.0/);
-    expect(workflow).toContain("pnpm add --global @deepseek-ai/dsh@0.1.1-rc.2");
+    expect(workflow).toContain(
+      'pnpm add --dir "$RUNNER_TEMP/dsh-cli" --save-exact @deepseek-ai/dsh@0.1.1-rc.2',
+    );
     expect(workflow).toContain("npm run build");
-    expect(workflow).toContain("node scripts/dsh-real-smoke.mjs --dsh dsh");
+    expect(workflow).toContain(
+      'node scripts/dsh-real-smoke.mjs --dsh-entry "$RUNNER_TEMP/dsh-cli/node_modules/@deepseek-ai/dsh/lib/bin.js"',
+    );
     expect(workflow).not.toContain("--tgz ./dsh-desktop-slot-widget-");
     expect(workflow).not.toMatch(/npx\s+@deepseek-ai\/dsh|pnpm\s+dlx/);
+    expect(workflow).not.toContain("pnpm add --global");
   });
 
   it("derives the default archive from the current package manifest", () => {

@@ -30,7 +30,10 @@ const HABITAT_ARTWORK = [
   { id: "animals", title: "牧场" },
 ] as const;
 
-test.use({ contextOptions: { reducedMotion: "no-preference" } });
+test.use({
+  contextOptions: { reducedMotion: "no-preference" },
+  timezoneId: "Asia/Shanghai",
+});
 
 test("desktop overlay passes transparent table clicks to the DSH control beneath it", async ({ page }) => {
   await page.goto("/native-preview.html");
@@ -99,6 +102,8 @@ test("ecosystem fast-forward shows growth immediately without opening a drawer",
   const ecosystem = page.getByRole("region", { name: "养成生态", exact: true });
   const sandbox = page.getByRole("region", { name: "预览测试沙盒" });
   const goldfish = page.locator('[data-resident-id="goldfish"]');
+  await expect(page.getByRole("application", { name: "DSH 桌面老虎机" }))
+    .toHaveAttribute("data-day-phase", "day");
   await expect(page.getByRole("region", { name: "鱼缸养成抽屉" })).toHaveCount(0);
   await expect(ecosystem).toContainText(/鱼缸 1 \/ 3.*鱼苗 0%/);
   await expect(goldfish).toHaveAttribute("data-growth-progress", "0");

@@ -40,9 +40,13 @@ jobs:
         with:
           version: 11.7.0
       - name: Install pinned official DSH CLI
-        run: pnpm add --global @deepseek-ai/dsh@0.1.1-rc.2
+        run: |
+          mkdir -p "$RUNNER_TEMP/dsh-cli"
+          pnpm add --dir "$RUNNER_TEMP/dsh-cli" --save-exact @deepseek-ai/dsh@0.1.1-rc.2
+      - name: Verify pinned official DSH CLI version
+        run: node "$RUNNER_TEMP/dsh-cli/node_modules/@deepseek-ai/dsh/lib/bin.js" --version
       - name: Verify install, boot, restart, persistence, and removal
-        run: node scripts/dsh-real-smoke.mjs --dsh dsh
+        run: node scripts/dsh-real-smoke.mjs --dsh-entry "$RUNNER_TEMP/dsh-cli/node_modules/@deepseek-ai/dsh/lib/bin.js"
       - name: Build the tracked source archive
         run: npm run build:source
       - name: Create checksums
