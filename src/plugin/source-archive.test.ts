@@ -40,6 +40,7 @@ describe("release source archive", () => {
       "CHANGELOG.md",
       "CONTRIBUTING.md",
       "SECURITY.md",
+      "screenshots.json",
       ".github/workflows/ci.yml",
       "docs/guide.md",
       "public/assets/scene-base.png",
@@ -61,6 +62,7 @@ describe("release source archive", () => {
     expect(included).toContain("CHANGELOG.md");
     expect(included).toContain("CONTRIBUTING.md");
     expect(included).toContain("SECURITY.md");
+    expect(included).toContain("screenshots.json");
     expect(included).not.toContain("assets/generated.png");
     expect(included).not.toContain(".superpowers/internal.md");
     expect(included).not.toContain("dsh-slot-homestead-0.2.0.tgz");

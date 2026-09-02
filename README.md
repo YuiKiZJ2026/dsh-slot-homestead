@@ -2,7 +2,7 @@
 
 [![CI](https://github.com/YuiKiZJ2026/dsh-slot-homestead/actions/workflows/ci.yml/badge.svg)](https://github.com/YuiKiZJ2026/dsh-slot-homestead/actions/workflows/ci.yml)
 
-![老虎机庄园预览](docs/demo-preview.png)
+![老虎机庄园夜间鱼缸、共享木桌与老虎机预览](docs/demo-preview.png)
 
 **老虎机庄园**（技术包名 `dsh-slot-homestead`）是一款面向社区版 DSH Desktop 2.x 的
 桌面像素生态养成与老虎机 companion 插件。DSH 启动后，Host 会创建

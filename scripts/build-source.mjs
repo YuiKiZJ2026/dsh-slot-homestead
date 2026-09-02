@@ -30,6 +30,7 @@ const INCLUDED_FILES = new Set([
   "package-lock.json",
   "package.json",
   "playwright.config.ts",
+  "screenshots.json",
   "tsconfig.json",
   "tsconfig.plugin.json",
   "vite.config.ts",

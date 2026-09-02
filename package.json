@@ -42,6 +42,7 @@
     "test:unit": "vitest run --exclude src/plugin/package-contract.test.ts",
     "test:package": "vitest run src/plugin/package-contract.test.ts",
     "test:visual": "playwright test tests/visual.spec.ts",
+    "capture:marketplace": "node scripts/capture-marketplace-screenshots.mjs",
     "prepack": "npm run build:artifacts",
     "pack:release": "npm pack",
     "verify:release-artifact": "npm run typecheck && npm run build:artifacts && npm run test:unit && npm pack --ignore-scripts && npm run test:package",

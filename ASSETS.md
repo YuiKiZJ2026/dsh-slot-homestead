@@ -12,8 +12,10 @@
 
 This notice covers the visual files under `public/assets/`, their runtime copies under
 `src/plugin/client/assets/`, the audited copies emitted to the package-level `assets/`
-directory, and the packaged project preview at `docs/demo-preview.png`. Generated build
-output is not a separate source of artwork.
+directory, the packaged project preview at `docs/demo-preview.png`, and the current
+runtime captures under `docs/screenshots/`. The screenshots only capture confirmed
+in-project visuals listed here. Generated build output is not a separate source of
+artwork.
 
 ## Evidence available in this repository
 
