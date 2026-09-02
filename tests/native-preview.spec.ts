@@ -350,6 +350,9 @@ for (const viewport of VIEWPORTS) {
       diagnostics.push(`pageerror:${error.message}`);
     });
 
+    await page.addInitScript(() => {
+      Math.random = () => 0.7;
+    });
     await installReelDrawProbe(page);
     await page.setViewportSize(viewport);
     await page.goto("/native-preview.html");
