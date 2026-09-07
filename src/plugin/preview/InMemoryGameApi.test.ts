@@ -1,8 +1,60 @@
-import { describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { CommandRequest } from "../shared/contracts";
 import { InMemoryGameApi } from "./InMemoryGameApi";
+import { getMerchantView } from "../../ecosystem/merchant";
+
+beforeEach(() => { vi.useFakeTimers(); vi.setSystemTime(new Date("2026-08-27T00:00:00.000Z")); });
+afterEach(() => { vi.useRealTimers(); });
 
 describe("InMemoryGameApi", () => {
+  it("lets the isolated test world reach a visit, trade once, and reject stale stock updates", async () => {
+    const api = new InMemoryGameApi();
+    const start = api.refillTestResources();
+    const day = getMerchantView(start.ecosystem).nextArrivalDay;
+    const atVisit = api.advanceTestWorldMinutes((day - 1) * 24 * 60 + 4 * 60);
+    const view = getMerchantView(atVisit.ecosystem);
+    expect(view.present).toBe(true);
+    const offer = view.offers.find(item => item.kind === "supply")!;
+    const trade = { ...base(atVisit.revision, 970), type: "merchantBuy" as const, itemId: offer.itemId, visitId: view.visitId! };
+    const first = await api.command(trade);
+    expect(first).toMatchObject({ status: 200, snapshot: { wallet: 99 - offer.price } });
+    expect(await api.command(trade)).toEqual(first);
+    expect(await api.command({ ...trade, commandId: base(atVisit.revision, 971).commandId })).toMatchObject({ status: 409, errorCode: "revision-conflict" });
+    expect(getMerchantView((await api.getSnapshot("preview")).ecosystem).offers.find(item => item.itemId === offer.itemId)?.remaining).toBe(offer.remaining - 1);
+  });
+  it("runs naturally at thirty game minutes per real minute without accelerating real daily budgets", async () => {
+    const api = new InMemoryGameApi();
+    const start = await api.getSnapshot("preview");
+    expect(start.ecosystem.world?.elapsedMs).toBe(0);
+    vi.setSystemTime(new Date("2026-08-27T00:01:00.000Z"));
+    const later = await api.getSnapshot("preview");
+    expect(later.ecosystem.world?.elapsedMs).toBe(30 * 60_000);
+    expect(later.revision).toBe(start.revision);
+    const skipped = api.advanceTestWorldMinutes(24 * 60);
+    expect(skipped.ecosystem.world?.elapsedMs).toBe((24 * 60 + 30) * 60_000);
+    expect(skipped.localDate).toBe(start.localDate);
+    expect(skipped.tokenEnergy).toEqual(start.tokenEnergy);
+    expect(skipped.ecosystem.lifecycle.fish.goldfish?.growth).toBeGreaterThan(0);
+  });
+  it("cancels a next-crop plan in the playable preview without changing the crop or refunding twice", async () => {
+    const api = new InMemoryGameApi();
+    let state = api.refillTestResources();
+    state = (await api.command({ ...base(state.revision, 401), type: "buyItem", itemId: "tomato-seed" })).snapshot;
+    state = api.advanceTestEcosystem(24);
+    state = (await api.command({ ...base(state.revision, 402), type: "plantCrop", plotId: "1", seedId: "tomato-seed" })).snapshot;
+    const cropBefore = structuredClone(state.ecosystem.lifecycle.plots["1"]);
+    expect(cropBefore.nextSeedId).toBe("tomato-seed");
+    const fertilizerBefore = state.ecosystem.supplies.fertilizer;
+    const cancelled = await api.command({ ...base(state.revision, 403), type: "cancelPlanting", plotId: "1" });
+    expect(cancelled.status).toBe(200);
+    delete cropBefore.nextSeedId;
+    expect(cancelled.snapshot.ecosystem.lifecycle.plots["1"]).toEqual(cropBefore);
+    expect(cancelled.snapshot.ecosystem.supplies.fertilizer).toBe(fertilizerBefore + 1);
+    const duplicate = await api.command({ ...base(cancelled.snapshot.revision, 404), type: "cancelPlanting", plotId: "1" });
+    expect(duplicate).toMatchObject({ status: 409, errorCode: "no-planting-plan" });
+    expect(duplicate.snapshot).toEqual(cancelled.snapshot);
+  });
+
   it("refills exhausted preview supplies, clears an unfinished spin, and keeps each page sandbox isolated", async () => {
     const firstPageApi = new InMemoryGameApi();
     const secondPageApi = new InMemoryGameApi();
@@ -36,7 +88,7 @@ describe("InMemoryGameApi", () => {
     });
 
     const caredAgain = await firstPageApi.command({
-      ...base(refilled.revision, 2),
+      ...base(refilled.revision, 98),
       type: "careHabitat",
       habitat: "animals",
     });

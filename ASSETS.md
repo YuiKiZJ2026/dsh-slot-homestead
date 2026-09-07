@@ -27,6 +27,11 @@ artwork.
   this project. The `scripts/prepare-*.py` files document local cropping, masking,
   nearest-neighbour resizing, compositing, and synchronized runtime copies.
 - The lifecycle and produce SVG atlases are project-authored vector/pixel markup.
+  The local 0.9 preview adds code-authored scale, feather/fur and leaf-vein patterns
+  to the existing SVG atlases. Preview.2 refines project-authored young/adult animal
+  feather, fur and paw clusters without changing atlas framing or transparency.
+  The journal entry reuses the original book-stand
+  collectible sprite. No new external image or game asset was imported.
 - Private feedback screenshots and local QA captures were used as layout references;
   they are not runtime assets and are intentionally excluded from source and package
   archives.

@@ -3,10 +3,16 @@ import type { AnimationBoundaryEvent } from "../../components/GameCanvas";
 import { createInitialState, type GameSettings, type GameState, type HabitatId, type ResolvedSpin, type TablePositionId } from "../../domain/types";
 import type { CommandRequest, CommandResult, PublicSnapshot } from "../shared/contracts";
 import type { GameApi } from "./api";
+import type { EcosystemPlotId } from "../../domain/types";
 
 const POLL_INTERVAL_MS = 2_000;
 const DEFAULT_REQUEST_TIMEOUT_MS = 10_000;
 type CommandPayload =
+  | { type: "merchantBuy"; itemId: string; visitId: string }
+  | { type: "merchantSell"; habitat: "garden" | "animals"; visitId: string }
+  | { type: "claimJournal"; questId: string }
+  | { type: "plantCrop"; plotId: EcosystemPlotId; seedId: string }
+  | { type: "cancelPlanting"; plotId: EcosystemPlotId }
   | { type: "claimDaily" | "insertCoin" }
   | { type: "pullLever" | "settleSpin"; spinId: string }
   | { type: "buyItem"; itemId: string }
@@ -34,6 +40,11 @@ export interface HostGameController {
   insertCoin(): Promise<void>;
   pullLever(): Promise<void>;
   play(): Promise<void>;
+  claimJournal(questId: string): Promise<void>;
+  plant(plotId: EcosystemPlotId, seedId: string): Promise<void>;
+  cancelPlanting(plotId: EcosystemPlotId): Promise<void>;
+  merchantBuy(itemId: string, visitId: string): Promise<void>;
+  merchantSell(habitat: "garden" | "animals", visitId: string): Promise<void>;
   buy(itemId: string): Promise<void>;
   care(habitat: HabitatId): Promise<void>;
   collect(habitat: Extract<HabitatId, "garden" | "animals">): Promise<void>;
@@ -72,7 +83,7 @@ export function useHostGameController({
     if (
       snapshotRef.current !== null &&
       next.revision === snapshotRef.current.revision &&
-      ecosystemTimestamp(next) < ecosystemTimestamp(snapshotRef.current)
+      olderEcosystem(next, snapshotRef.current)
     ) return false;
     snapshotRef.current = next;
     setSnapshot(next);
@@ -242,6 +253,23 @@ export function useHostGameController({
     await executeCommand({ type: "buyItem", itemId });
   }, [executeCommand]);
 
+  const merchantBuy = useCallback(async (itemId: string, visitId: string): Promise<void> => {
+    await executeCommand({ type: "merchantBuy", itemId, visitId });
+  }, [executeCommand]);
+  const merchantSell = useCallback(async (habitat: "garden" | "animals", visitId: string): Promise<void> => {
+    await executeCommand({ type: "merchantSell", habitat, visitId });
+  }, [executeCommand]);
+
+  const claimJournal = useCallback(async (questId: string): Promise<void> => {
+    await executeCommand({ type: "claimJournal", questId });
+  }, [executeCommand]);
+  const cancelPlanting = useCallback(async (plotId: EcosystemPlotId): Promise<void> => {
+    await executeCommand({ type: "cancelPlanting", plotId });
+  }, [executeCommand]);
+  const plant = useCallback(async (plotId: EcosystemPlotId, seedId: string): Promise<void> => {
+    await executeCommand({ type: "plantCrop", plotId, seedId });
+  }, [executeCommand]);
+
   const care = useCallback(async (habitat: HabitatId): Promise<void> => {
     await executeCommand({ type: "careHabitat", habitat });
   }, [executeCommand]);
@@ -321,6 +349,11 @@ export function useHostGameController({
     insertCoin,
     pullLever,
     play,
+    claimJournal,
+    cancelPlanting,
+    merchantBuy,
+    merchantSell,
+    plant,
     buy,
     care,
     collect,
@@ -329,6 +362,20 @@ export function useHostGameController({
     setSettings,
     advanceAnimation,
   };
+}
+
+function olderEcosystem(next: PublicSnapshot, current: PublicSnapshot): boolean {
+  const nextWorld = next.ecosystem.world;
+  const currentWorld = current.ecosystem.world;
+  // Installing the game clock rebases ecology from real dates to year 2000.
+  // That intentional epoch change must not look like a stale poll.
+  if (nextWorld && !currentWorld) return false;
+  if (!nextWorld && currentWorld) return true;
+  if (nextWorld && currentWorld) {
+    return nextWorld.elapsedMs < currentWorld.elapsedMs ||
+      (nextWorld.elapsedMs === currentWorld.elapsedMs && Date.parse(nextWorld.lastRealAt) < Date.parse(currentWorld.lastRealAt));
+  }
+  return ecosystemTimestamp(next) < ecosystemTimestamp(current);
 }
 
 function ecosystemTimestamp(snapshot: PublicSnapshot): number {
@@ -352,6 +399,11 @@ function makeCommandRequest(
 ): CommandRequest {
   const base = { commandId, sessionId, expectedRevision, issuedAt };
   switch (payload.type) {
+    case "merchantBuy": return { ...base, type: "merchantBuy", itemId: payload.itemId, visitId: payload.visitId };
+    case "merchantSell": return { ...base, type: "merchantSell", habitat: payload.habitat, visitId: payload.visitId };
+    case "claimJournal": return { ...base, type: "claimJournal", questId: payload.questId };
+    case "plantCrop": return { ...base, type: "plantCrop", plotId: payload.plotId, seedId: payload.seedId };
+    case "cancelPlanting": return { ...base, type: "cancelPlanting", plotId: payload.plotId };
     case "claimDaily": return { ...base, type: "claimDaily" };
     case "insertCoin": return { ...base, type: "insertCoin" };
     case "pullLever": return { ...base, type: "pullLever", spinId: payload.spinId };

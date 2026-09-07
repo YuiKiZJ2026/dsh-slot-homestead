@@ -6,11 +6,13 @@ import {
   careForHabitat,
   collectHabitatProduce,
 } from "../../ecosystem/ecosystem";
-import { advanceEcosystemTo } from "../../ecosystem/lifecycle";
+import { advanceWorld, worldDate, WORLD_TIME_RATE } from "../../ecosystem/world-clock";
+import { buyFromMerchant, sellToMerchant } from "../../ecosystem/merchant";
+import { claimJournalReward } from "../../ecosystem/journal";
+import { cancelPlanting, plantCrop } from "../../ecosystem/planting";
 import { createPaidSpin } from "../../game/outcomes";
 import { mathRandomSource, type RandomSource } from "../../game/rng";
 import { settleActiveSpin } from "../../inventory/inventory";
-import { FixedClock, localDateKey } from "../../time/clock";
 import { TABLE_POSITIONS } from "../../domain/table-positions";
 import {
   commandRequestSchema,
@@ -22,15 +24,17 @@ import {
 import type { GameApi } from "../client/api";
 
 const PREVIEW_DATE = "2026-08-27";
-const PREVIEW_NOW = new Date("2026-08-27T00:00:00.000Z");
 
 interface InMemoryGameApiDependencies {
   readonly rng?: RandomSource;
   readonly createId?: () => string;
+  readonly now?: () => Date;
 }
 
 export class InMemoryGameApi implements GameApi {
-  private readonly ecosystemClock = new FixedClock(PREVIEW_NOW);
+  private readonly now: () => Date;
+  private testOffsetMs = 0;
+  private readonly receipts = new Map<string, { fingerprint: string; result: CommandResult }>();
   private readonly rng: RandomSource;
   private readonly createId: () => string;
   private nextSpinId = 1;
@@ -55,6 +59,7 @@ export class InMemoryGameApi implements GameApi {
   constructor(dependencies: InMemoryGameApiDependencies = {}) {
     this.rng = dependencies.rng ?? mathRandomSource;
     this.createId = dependencies.createId ?? (() => `preview-spin-${this.nextSpinId++}`);
+    this.now = dependencies.now ?? (() => new Date());
     this.synchronizeEcosystem();
   }
 
@@ -66,16 +71,17 @@ export class InMemoryGameApi implements GameApi {
 
   advanceTestEcosystem(hours: number): PublicSnapshot {
     if (!Number.isFinite(hours) || hours <= 0) return structuredClone(this.snapshot);
-    const next = this.ecosystemClock.now();
-    next.setTime(next.getTime() + hours * 60 * 60 * 1_000);
-    this.ecosystemClock.set(next);
+    this.testOffsetMs += hours * 60 * 60 * 1_000 / WORLD_TIME_RATE;
     this.synchronizeEcosystem();
     this.snapshot = {
       ...this.snapshot,
       revision: this.snapshot.revision + 1,
-      localDate: localDateKey(next),
     };
     return structuredClone(this.snapshot);
+  }
+
+  advanceTestWorldMinutes(minutes: number): PublicSnapshot {
+    return this.advanceTestEcosystem(minutes / 60);
   }
 
   refillTestResources(): PublicSnapshot {
@@ -96,22 +102,56 @@ export class InMemoryGameApi implements GameApi {
     if (signal?.aborted) return Promise.reject(new DOMException("Aborted", "AbortError"));
     const request = commandRequestSchema.parse(input);
     this.synchronizeEcosystem();
+    const { commandId, expectedRevision: _revision, issuedAt: _issuedAt, ...payload } = request;
+    const fingerprint = JSON.stringify(payload);
+    const receipt = this.receipts.get(commandId);
+    if (receipt !== undefined) {
+      return Promise.resolve(receipt.fingerprint === fingerprint
+        ? structuredClone(receipt.result) : this.conflict("command-id-reused"));
+    }
     if (request.expectedRevision !== this.snapshot.revision) {
       return Promise.resolve(this.conflict("revision-conflict"));
     }
     const result = this.transition(request);
+    if (result.status === 200) {
+      this.receipts.set(commandId, { fingerprint, result: structuredClone(result) });
+      if (this.receipts.size > 128) this.receipts.delete(this.receipts.keys().next().value!);
+    }
     return Promise.resolve(result);
   }
 
   private transition(request: CommandRequest): CommandResult {
+    const gameNow = worldDate(this.snapshot.ecosystem.world);
     switch (request.type) {
+      case "merchantBuy":
+      case "merchantSell": {
+        const game = this.asGameState();
+        const result = request.type === "merchantBuy"
+          ? buyFromMerchant(game, request.itemId, request.visitId)
+          : sellToMerchant(game, request.habitat, request.visitId);
+        if (!result.ok) return this.conflict(result.reason);
+        return this.success({ ...this.snapshot, wallet: result.state.wallet, ecosystem: result.state.ecosystem });
+      }
+      case "claimJournal":
+      case "plantCrop": {
+        const result = request.type === "claimJournal"
+          ? claimJournalReward(this.asGameState(), request.questId, gameNow)
+          : plantCrop(this.asGameState(), request.plotId, request.seedId, gameNow);
+        if (!result.ok) return this.conflict(result.reason);
+        return this.success({ ...this.snapshot, wallet: result.state.wallet, ecosystem: result.state.ecosystem });
+      }
       case "claimDaily":
         return this.success(this.snapshot, false);
+      case "cancelPlanting": {
+        const result = cancelPlanting(this.asGameState(), request.plotId);
+        if (!result.ok) return this.conflict(result.reason);
+        return this.success({ ...this.snapshot, ecosystem: result.state.ecosystem });
+      }
       case "insertCoin": {
         const result = createPaidSpin(
           this.asGameState(),
           this.rng,
-          this.ecosystemClock.now(),
+          this.now(),
           this.createId,
         );
         if (!result.ok) {
@@ -186,7 +226,7 @@ export class InMemoryGameApi implements GameApi {
         });
       }
       case "careHabitat": {
-        const result = careForHabitat(this.asGameState(), request.habitat, this.ecosystemClock.now());
+        const result = careForHabitat(this.asGameState(), request.habitat, gameNow);
         if (!result.ok) return this.conflict("no-supply");
         return this.success({
           ...this.snapshot,
@@ -198,7 +238,7 @@ export class InMemoryGameApi implements GameApi {
         const result = collectHabitatProduce(
           this.asGameState(),
           request.habitat,
-          this.ecosystemClock.now(),
+          gameNow,
         );
         if (!result.ok) return this.conflict("nothing-to-collect");
         return this.success({
@@ -255,7 +295,7 @@ export class InMemoryGameApi implements GameApi {
   private synchronizeEcosystem(): void {
     this.snapshot = {
       ...this.snapshot,
-      ecosystem: advanceEcosystemTo(this.snapshot.ecosystem, this.ecosystemClock.now()),
+      ecosystem: advanceWorld(this.snapshot.ecosystem, new Date(this.now().getTime() + this.testOffsetMs), 42),
     };
   }
 

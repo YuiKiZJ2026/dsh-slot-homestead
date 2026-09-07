@@ -103,7 +103,7 @@ test("ecosystem fast-forward shows growth immediately without opening a drawer",
   const sandbox = page.getByRole("region", { name: "预览测试沙盒" });
   const goldfish = page.locator('[data-resident-id="goldfish"]');
   await expect(page.getByRole("application", { name: "老虎机庄园｜桌面像素生态养成" }))
-    .toHaveAttribute("data-day-phase", "day");
+    .toHaveAttribute("data-day-phase", "dawn");
   await expect(page.getByRole("region", { name: "鱼缸养成抽屉" })).toHaveCount(0);
   await expect(ecosystem).toContainText(/鱼缸 1 \/ 3.*鱼苗 0%/);
   await expect(goldfish).toHaveAttribute("data-growth-progress", "0");

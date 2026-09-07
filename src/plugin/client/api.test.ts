@@ -9,6 +9,18 @@ afterEach(() => {
 });
 
 describe("HttpGameApi", () => {
+  it.each(["merchant-away", "stale-visit", "out-of-stock", "inventory-full", "trade-limit", "nothing-to-harvest", "invalid-state", "invalid-habitat"])("accepts the merchant conflict %s from the Host", async (errorCode) => {
+    const current = snapshot();
+    const fetcher = vi.fn<typeof fetch>().mockResolvedValue(jsonResponse({ snapshot: current, errorCode }, 409));
+    await expect(new HttpGameApi(fetcher).command({ ...insertRequest(), type: "merchantBuy", itemId: "fish-feed", visitId: "visit-1" })).resolves.toEqual({ status: 409, snapshot: current, errorCode });
+  });
+  it("accepts the authoritative no-plan conflict after a stale cancellation", async () => {
+    const current = snapshot();
+    const fetcher = vi.fn<typeof fetch>().mockResolvedValue(jsonResponse({ snapshot: current, errorCode: "no-planting-plan" }, 409));
+    const request = { ...insertRequest(), type: "cancelPlanting" as const, plotId: "1" as const };
+    await expect(new HttpGameApi(fetcher).command(request)).resolves.toEqual({ status: 409, snapshot: current, errorCode: "no-planting-plan" });
+  });
+
   it("preserves the Window receiver when it uses the native global fetch", async () => {
     const nativeLikeFetch = vi.fn(function (this: unknown) {
       if (this !== globalThis) throw new TypeError("Illegal invocation");

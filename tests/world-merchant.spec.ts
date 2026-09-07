@@ -1,0 +1,73 @@
+import { expect, test } from "@playwright/test";
+
+test("game clock owns day and night regardless of the computer clock", async ({page})=> {
+  await page.clock.setFixedTime(new Date("2026-09-07T23:00:00+08:00"));
+  await page.goto("/native-preview.html");
+  await expect(page.getByTestId("wallet-count")).toHaveText("8");
+  await expect(page.getByRole("application")).toHaveAttribute("data-day-phase","dawn");
+  await expect(page.getByRole("button",{name:/打开庄园日历：第 1 天 06:00/})).toBeVisible();
+  await page.getByRole("button",{name:"生态快进 6 小时",exact:true}).click();
+  await expect(page.getByRole("application")).toHaveAttribute("data-day-phase","day");
+  await page.getByRole("button",{name:"生态快进 6 小时",exact:true}).click();
+  await expect(page.getByRole("application")).toHaveAttribute("data-day-phase","dusk");
+  await page.getByRole("button",{name:"生态快进 6 小时",exact:true}).click();
+  await expect(page.getByRole("application")).toHaveAttribute("data-day-phase","night");
+  await expect(page.getByRole("button",{name:/第 2 天 00:00/})).toBeVisible();
+  await page.getByRole("button",{name:/打开庄园日历/}).click();
+  await expect(page.getByRole("dialog",{name:"庄园日历与旅行商人"})).toContainText("现实 1 分钟 = 庄园 30 分钟");
+  await page.screenshot({path:"artifacts/world-merchant/game-night.png"});
+});
+
+test("travelling merchant trades finite stock and unharvested crops through real UI", async ({page})=> {
+  await page.goto("/native-preview.html");
+  await expect(page.getByTestId("wallet-count")).toHaveText("8");
+  await page.getByRole("button",{name:"补满测试资源"}).click();
+  await page.getByRole("button",{name:"测试商人来访"}).click();
+  const clock=page.getByRole("button",{name:/打开庄园日历/});
+  await expect(clock).toHaveAttribute("data-merchant-present","true");
+  await clock.click();
+  await page.getByRole("button",{name:"买入",exact:true}).click();
+  const feed=page.getByRole("button",{name:"向商人购买 鱼食"});
+  await feed.click();
+  await expect(page.getByTestId("wallet-count")).toHaveText("95");
+  await feed.click();
+  await expect(page.getByTestId("wallet-count")).toHaveText("91");
+  await expect(feed).toBeDisabled();
+  await page.getByRole("button",{name:"合上庄园日历"}).click();
+  await clock.click();
+  await page.getByRole("button",{name:"买入",exact:true}).click();
+  await expect(feed).toBeDisabled();
+  await page.getByRole("button",{name:"出售",exact:true}).click();
+  await page.getByRole("button",{name:"出售菜园成熟收成"}).click();
+  await expect(page.getByTestId("wallet-count")).toHaveText("91");
+  await page.getByRole("button",{name:"确认出售 · 4 枚"}).click();
+  await expect(page.getByTestId("wallet-count")).toHaveText("95");
+  await expect(page.getByRole("button",{name:"出售菜园成熟收成"})).toBeDisabled();
+  await expect(page.getByTestId("homestead-feedback")).toContainText("商人交易完成");
+  await page.screenshot({path:"artifacts/world-merchant/trade.png"});
+  await page.getByRole("button",{name:"生态快进 6 小时",exact:true}).click();
+  await page.getByRole("button",{name:"生态快进 6 小时",exact:true}).click();
+  await expect(clock).toHaveAttribute("data-merchant-present","false");
+  await page.getByRole("button",{name:"买入",exact:true}).click();
+  await expect(feed).toBeDisabled();
+});
+
+test("calendar stays usable inside the native compact and expanded window", async ({page})=> {
+  await page.setViewportSize({width:560,height:384});
+  await page.goto("/native-preview.html?display=companion");
+  await expect(page.getByTestId("wallet-count")).toHaveText("8");
+  const clock=page.getByRole("button",{name:/打开庄园日历/});
+  const bounds=(await clock.boundingBox())!;
+  expect(bounds.x).toBeGreaterThanOrEqual(0);expect(bounds.x+bounds.width).toBeLessThanOrEqual(560);
+  await clock.click();
+  await page.setViewportSize({width:560,height:496});
+  const panel=page.getByRole("dialog",{name:"庄园日历与旅行商人"});
+  await expect(panel).toBeVisible();
+  const expanded=(await panel.boundingBox())!;
+  expect(expanded.x).toBeGreaterThanOrEqual(0);expect(expanded.x+expanded.width).toBeLessThanOrEqual(560);
+  expect(expanded.y+expanded.height).toBeLessThanOrEqual(496);
+  await page.getByRole("button",{name:"买入",exact:true}).click();
+  await expect(page.getByRole("button",{name:"向商人购买 鱼食"})).toBeDisabled();
+  await expect(page.getByRole("button",{name:"向商人购买 鱼食"})).toBeInViewport({ratio:1});
+  await page.screenshot({path:"artifacts/world-merchant/native-calendar.png"});
+});

@@ -28,6 +28,14 @@ afterEach(() => {
 });
 
 describe("PluginApp", () => {
+  it("uses persisted game time for the default lighting and calendar", async () => {
+    const current=snapshot();
+    current.ecosystem.world={elapsedMs:14*3600000,lastRealAt:"2026-09-07T00:00:00Z",seed:42};
+    render(<PluginApp api={new StaticApi(current)} sessionId="clock-review" assetUrls={ASSET_URLS} loadAssets={neverLoads}/>);
+    await waitFor(()=>expect(screen.getByRole("application")).toHaveAttribute("data-day-phase","night"));
+    expect(screen.getByRole("button",{name:/第 1 天 20:00/})).toBeVisible();
+    expect(screen.getByRole("status",{name:"当前庄园光照：夜间熄灯"})).toBeVisible();
+  });
   it("snaps Windows frame rounding back to the default scale", () => {
     expect(normalizeCompanionScale(1.006)).toBe(1);
     expect(normalizeCompanionScale(1.2545)).toBe(1.25);
@@ -47,7 +55,7 @@ describe("PluginApp", () => {
 
     expect(screen.getByRole("application", { name: "老虎机庄园｜桌面像素生态养成" }))
       .toHaveAttribute("data-day-phase", "dusk");
-    expect(screen.getByRole("status", { name: "当前系统光照：傍晚暖光" }))
+    expect(screen.getByRole("status", { name: "当前预览光照：傍晚暖光" }))
       .toHaveTextContent("光照傍晚暖光");
     expect(container.querySelector('[data-night-sky="moon-stars"]')).toHaveAttribute(
       "aria-hidden",

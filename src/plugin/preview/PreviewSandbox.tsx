@@ -1,4 +1,7 @@
-import { useRef, useState } from "react";
+import { useMemo, useRef, useState } from "react";
+import { FixedClock } from "../../time/clock";
+import { worldView } from "../../ecosystem/world-clock";
+import { getMerchantView } from "../../ecosystem/merchant";
 import type { EcosystemState } from "../../domain/types";
 import { getHabitatLifecycleView, getHabitatReadyProduce } from "../../ecosystem/lifecycle";
 import {
@@ -7,6 +10,7 @@ import {
   fishVisualStageLabel,
 } from "../../ecosystem/visual-stage";
 import { PluginApp } from "../client/PluginApp";
+import { PLUGIN_STYLE } from "../client/style";
 import { InMemoryGameApi } from "./InMemoryGameApi";
 
 const PREVIEW_ASSETS = {
@@ -28,10 +32,24 @@ interface PreviewEcosystemSettlement {
 }
 
 export function PreviewSandbox() {
+  const companionPreview = new URLSearchParams(window.location.search).get("display") === "companion";
   const [sandbox, setSandbox] = useState<PreviewSandboxState>(() => createSandbox(0));
   const [status, setStatus] = useState("每个预览页使用独立测试数据");
   const [settlement, setSettlement] = useState<PreviewEcosystemSettlement | null>(null);
   const settlementSequence = useRef(0);
+  const [lighting, setLighting] = useState("world");
+  const lightingClock = useMemo(() => lighting === "world" ? undefined : new FixedClock(new Date(`2026-09-05T${lighting}:00:00`)), [lighting]);
+
+  const visitMerchant = async (): Promise<void> => {
+    const before = await sandbox.api.getSnapshot("native-preview");
+    const clock = worldView(before.ecosystem.world);
+    const visit = getMerchantView(before.ecosystem);
+    if (!visit.present) sandbox.api.advanceTestWorldMinutes((visit.nextArrivalDay-clock.day)*1440+480-clock.minuteOfDay);
+    setLighting("world");
+    setSandbox(current=>({...current,refreshToken:current.refreshToken+1}));
+    setSettlement(null);
+    setStatus("已快进至商人来访：点击工作台的天数与时间，打开日历交易。");
+  };
 
   const refill = (): void => {
     sandbox.api.refillTestResources();
@@ -60,12 +78,19 @@ export function PreviewSandbox() {
 
   return (
     <>
+      {companionPreview ? <style>{PLUGIN_STYLE}</style> : null}
       <PreviewSandboxControls
         status={status}
         onRefill={refill}
         onAdvanceEcosystem={advanceEcosystem}
         onReset={reset}
+        onVisitMerchant={()=>{void visitMerchant();}}
       />
+      <div className="preview-lighting" role="group" aria-label="预览光照">
+        <span>光照预览</span>
+        {[ ["world", "庄园时间"], ["06", "清晨"], ["12", "白天"], ["18", "黄昏"], ["23", "夜晚"] ].map(([value, label]) =>
+          <button type="button" key={value} aria-pressed={lighting === value} onClick={() => setLighting(value)}>{label}</button>)}
+      </div>
       {settlement === null ? null : (
         <aside
           key={`ecosystem-settlement-${settlement.sequence}`}
@@ -87,6 +112,8 @@ export function PreviewSandbox() {
         sessionId="native-preview"
         assetUrls={PREVIEW_ASSETS}
         refreshToken={sandbox.refreshToken}
+        lightingClock={lightingClock}
+        displayMode={companionPreview ? "companion" : "page"}
       />
     </>
   );
@@ -97,18 +124,23 @@ export function PreviewSandboxControls({
   onRefill,
   onAdvanceEcosystem,
   onReset,
+  onVisitMerchant,
 }: {
   status: string;
   onRefill(): void;
   onAdvanceEcosystem(): void;
   onReset(): void;
+  onVisitMerchant?(): void;
 }) {
   return (
     <section className="preview-sandbox" role="region" aria-label="预览测试沙盒">
-      <strong className="preview-sandbox__title">测试沙盒</strong>
+      <span className="preview-sandbox__eyebrow">本地体验版 · 尚未发布</span>
+      <strong className="preview-sandbox__title">老虎机庄园</strong>
+      <p className="preview-sandbox__intro">一点点照料，长成自己的小世界。</p>
       <div className="preview-sandbox__actions">
         <button type="button" onClick={onRefill}>补满测试资源</button>
         <button type="button" onClick={onAdvanceEcosystem}>生态快进 6 小时</button>
+        {onVisitMerchant ? <button type="button" onClick={onVisitMerchant}>测试商人来访</button> : null}
         <button type="button" onClick={onReset}>重置测试沙盒</button>
       </div>
       <p className="preview-sandbox__status" role="status" aria-live="polite">{status}</p>

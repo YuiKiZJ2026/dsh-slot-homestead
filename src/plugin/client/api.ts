@@ -9,6 +9,11 @@ import {
 const STATE_PATH = "/api/dsh-slot-widget/state";
 const COMMAND_PATH = "/api/dsh-slot-widget/command";
 const errorCodeSchema = z.enum([
+  "merchant-away", "stale-visit", "out-of-stock", "inventory-full",
+  "trade-limit", "nothing-to-harvest", "invalid-state", "invalid-habitat",
+  "quest-unavailable",
+  "plot-occupied",
+  "no-planting-plan",
   "revision-conflict",
   "command-id-reused",
   "command-expired",

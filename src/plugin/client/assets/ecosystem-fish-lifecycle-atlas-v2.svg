@@ -1,12 +1,16 @@
 <svg xmlns="http://www.w3.org/2000/svg" width="800" height="600" viewBox="0 0 800 600" shape-rendering="crispEdges" data-native-facing="right" aria-label="Three fish species across four growth stages, all facing right">
+  <defs>
+    <pattern id="gold-scales" width="18" height="14" patternUnits="userSpaceOnUse"><rect width="18" height="14" fill="#ed7825"/><path d="M2 4h5v3H2zM11 11h4v2h-4z" fill="#fba143"/><path d="M7 7h5v2H7z" fill="#c95920"/></pattern>
+    <pattern id="pearl-scales" width="20" height="16" patternUnits="userSpaceOnUse"><rect width="20" height="16" fill="#478491"/><path d="M3 4h6v3H3zM13 12h4v2h-4z" fill="#71a9b0"/><path d="M8 8h5v2H8z" fill="#366b7b"/></pattern>
+  </defs>
   <style>
     .px-outline{stroke:#3a1d17;stroke-width:7;stroke-linejoin:miter;stroke-linecap:square}
     .px-outline-sm{stroke:#4a2419;stroke-width:5;stroke-linejoin:miter;stroke-linecap:square}
     .detail{fill:none;stroke:#7a321d;stroke-width:4;stroke-linecap:square}
     .ink{fill:#241719}.eye{fill:#171217}.spark{fill:#fff1bd}
-    .g-deep{fill:#8b361c}.g-shadow{fill:#bd491c}.g-mid{fill:#ed7020}.g-gold{fill:#f5a42b}.g-light{fill:#ffd362}
+    .g-deep{fill:#8b361c}.g-shadow{fill:#bd491c}.g-mid{fill:#ed7020}.g-mid[data-role="body"]{fill:url(#gold-scales)}.g-gold{fill:#f5a42b}.g-light{fill:#ffd362}
     .c-deep{fill:#74301f}.c-mid{fill:#d95727}.c-orange{fill:#f07a2b}.c-light{fill:#ffb342}.c-cream{fill:#ffe2a1}
-    .m-deep{fill:#183743}.m-shadow{fill:#285362}.m-mid{fill:#3c7680}.m-light{fill:#6fadb0}.m-moon{fill:#f4d78b}.m-gold{fill:#d9962d}
+    .m-deep{fill:#183743}.m-shadow{fill:#285362}.m-mid{fill:url(#pearl-scales)}.m-light{fill:#6fadb0}.m-moon{fill:#f4d78b}.m-gold{fill:#d9962d}
   </style>
 
   <!-- Row 1: goldfish. Bright warm bodies, round heads and increasingly flowing fins. -->

@@ -1,39 +1,55 @@
 .preview-sandbox {
   position: fixed;
-  top: 12px;
-  left: 12px;
+  top: 28px;
+  left: 28px;
   z-index: 30;
-  width: 224px;
+  width: 332px;
   box-sizing: border-box;
-  padding: 9px;
-  border: 1px solid #386377;
-  background: rgba(5, 22, 42, .94);
-  box-shadow: 3px 3px 0 rgba(0, 0, 0, .36);
+  padding: 0;
+  border: 0;
+  background: transparent;
+  box-shadow: none;
   color: #d5edf0;
   font: 12px/1.35 "Microsoft YaHei", sans-serif;
 }
+body:has(.desktop--companion) .preview-sandbox,
+body:has(.desktop--companion) .preview-lighting,
+body:has(.desktop--companion) .preview-ecosystem-settlement { display: none; }
+body:has(.desktop--companion) { margin: 0; background: transparent; }
+
+.preview-sandbox__eyebrow { color: #a1b99f; font-size: 10px; letter-spacing: .16em; }
+.preview-sandbox__intro { color: #aabdaf; margin: 0 0 18px; font-size: 12px; }
+.preview-lighting { position: fixed; left: 388px; top: 139px; z-index: 31; display: flex; align-items: center; gap: 5px; font: 11px "Microsoft YaHei", sans-serif; color: #aabdaf; }
+.preview-lighting span { margin-right: 7px; }
+.preview-lighting button { padding: 4px 8px; border: 1px solid transparent; background: transparent; color: #9badab; cursor: pointer; }
+.preview-lighting button[aria-pressed=true] { color: #edcf92; border-color: #64735d; background: #20362c; }
+.preview-lighting button:focus-visible { outline: 2px solid #edcf92; outline-offset: 2px; }
+@media (max-width: 780px) { .preview-sandbox { left: 16px; top: 16px; } .preview-sandbox__title { font-size: 25px; } .preview-lighting { left: 16px; top: 205px; } }
+
+body:has(.homestead-journal) .preview-ecosystem-settlement { display: none; }
 
 .preview-sandbox__title {
   display: block;
-  margin-bottom: 7px;
-  color: #ffe072;
-  letter-spacing: .08em;
+  margin: 10px 0 6px;
+  color: #f5dfae;
+  letter-spacing: .06em;
+  font: 600 32px/1.3 "Microsoft YaHei", sans-serif;
 }
 
 .preview-sandbox__actions {
   display: grid;
-  grid-template-columns: 1fr 1fr;
+  grid-template-columns: repeat(3, 1fr);
   gap: 6px;
 }
 
 .preview-sandbox button {
   min-height: 30px;
-  border: 1px solid #6b93a5;
-  background: #0d2944;
-  box-shadow: inset 0 0 0 1px #142035;
-  color: #edf9f7;
+  border: 1px solid #4e655c;
+  background: #1a302b;
+  box-shadow: none;
+  color: #dce4ce;
   cursor: pointer;
-  font: inherit;
+  font: 11px/1.5 "Microsoft YaHei", sans-serif;
 }
 
 .preview-sandbox button:hover,
@@ -55,8 +71,8 @@
 
 .preview-ecosystem-settlement {
   position: fixed;
-  top: 154px;
-  left: 12px;
+  top: 240px;
+  left: 28px;
   z-index: 31;
   width: 276px;
   box-sizing: border-box;

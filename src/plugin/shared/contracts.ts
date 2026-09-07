@@ -1,6 +1,9 @@
 import { z } from "zod";
 import { TABLE_POSITION_IDS } from "../../domain/table-positions";
 import { createInitialEcosystemState } from "../../domain/types";
+import { journalSchema } from "../../ecosystem/journal";
+import { worldSchema } from "../../ecosystem/world-clock";
+import { merchantStateSchema } from "../../ecosystem/merchant";
 
 const nonNegativeSafeInteger = z.number().int().nonnegative().safe();
 const identifier = z.string().min(1).max(256);
@@ -56,6 +59,7 @@ const ecosystemFishLifeSchema = z.object({
   boostedUntil: nullableLifecycleTimestamp,
 }).strict();
 const ecosystemPlotLifeSchema = z.object({
+  nextSeedId: identifier.optional(),
   seedId: identifier.nullable(),
   growth: lifecycleGrowth,
   readyYield: nonNegativeSafeInteger.max(1),
@@ -86,6 +90,9 @@ const ecosystemLifecycleSchema = z.object({
   produce: z.record(identifier, nonNegativeSafeInteger),
 }).strict();
 const ecosystemStateSchema = z.object({
+  world: worldSchema.optional(),
+  merchant: merchantStateSchema.optional(),
+  journal: journalSchema.optional(),
   discovered: z.array(identifier).refine((items) => new Set(items).size === items.length),
   selected: z.object({
     aquarium: identifier,
@@ -372,6 +379,11 @@ const settingsPatchSchema = z
   .refine((patch) => Object.keys(patch).length > 0, "Settings patch cannot be empty");
 
 export const commandRequestSchema = z.discriminatedUnion("type", [
+  z.object({ ...commandBase, type: z.literal("merchantBuy"), itemId: identifier, visitId: identifier }).strict(),
+  z.object({ ...commandBase, type: z.literal("merchantSell"), habitat: z.enum(["garden", "animals"]), visitId: identifier }).strict(),
+  z.object({ ...commandBase, type: z.literal("claimJournal"), questId: identifier }).strict(),
+  z.object({ ...commandBase, type: z.literal("plantCrop"), plotId: z.enum(["1", "2", "3", "4", "5", "6"]), seedId: identifier }).strict(),
+  z.object({ ...commandBase, type: z.literal("cancelPlanting"), plotId: z.enum(["1", "2", "3", "4", "5", "6"]) }).strict(),
   z.object({ ...commandBase, type: z.literal("claimDaily") }).strict(),
   z.object({ ...commandBase, type: z.literal("insertCoin") }).strict(),
   z.object({ ...commandBase, type: z.literal("pullLever"), spinId: identifier }).strict(),
@@ -410,6 +422,17 @@ export const commandRequestSchema = z.discriminatedUnion("type", [
 
 export type CommandRequest = z.infer<typeof commandRequestSchema>;
 export type CommandErrorCode =
+  | "merchant-away"
+  | "stale-visit"
+  | "out-of-stock"
+  | "inventory-full"
+  | "trade-limit"
+  | "nothing-to-harvest"
+  | "invalid-state"
+  | "invalid-habitat"
+  | "quest-unavailable"
+  | "plot-occupied"
+  | "no-planting-plan"
   | "revision-conflict"
   | "command-id-reused"
   | "command-expired"

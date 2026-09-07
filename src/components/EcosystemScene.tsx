@@ -4,6 +4,7 @@ import { ECOSYSTEM_ITEM_BY_ID } from "../ecosystem/catalog";
 import {
   getHabitatLifecycleView,
   getHabitatReadyProduce,
+  reconcileEcosystemLifecycle,
   type CollectedHabitatProduce,
 } from "../ecosystem/lifecycle";
 import {
@@ -422,6 +423,7 @@ export function EcosystemScene({
   dayPhase = "day",
   onCare,
   onCollect,
+  onOpenPlanting,
   mutationsDisabled = false,
   assetUrls = DEFAULT_ECOSYSTEM_ASSET_URLS,
   nightSky,
@@ -431,6 +433,7 @@ export function EcosystemScene({
   dayPhase?: DayPhase;
   onCare(habitat: HabitatId): void;
   onCollect?(habitat: Extract<HabitatId, "garden" | "animals">): void;
+  onOpenPlanting?(): void;
   mutationsDisabled?: boolean;
   assetUrls?: EcosystemAssetUrls;
   nightSky?: ReactNode;
@@ -463,7 +466,7 @@ export function EcosystemScene({
     lifecycleView.readyCount,
   );
   const careUseful = habitat === "aquarium"
-    ? lifecycleView.progress < 100
+    ? true
     : habitat === "garden"
       ? lifecycleView.progress < 100 && lifecycleView.readyCount === 0
       : lifecycleView.readyCount < 9;
@@ -471,7 +474,13 @@ export function EcosystemScene({
     ? `产出：${readyProduce.map((item) => `${item.name} ×${item.count}`).join("、")}`
     : "产出：暂无";
   const discovered = new Set(state.ecosystem.discovered);
-  const visibleLayers = HABITAT_LAYERS[habitat].filter(
+  const gardenPlots = reconcileEcosystemLifecycle(state.ecosystem).lifecycle.plots;
+  const habitatLayers = habitat === "garden" ? HABITAT_LAYERS.garden.flatMap((slot) => {
+    const plot = gardenPlots[String(slot.plot) as keyof typeof gardenPlots];
+    const crop = HABITAT_LAYERS.garden.find(layer => layer.residentId === plot?.seedId);
+    return crop ? [{ ...slot, asset: crop.asset, residentId: crop.residentId }] : [];
+  }) : HABITAT_LAYERS[habitat];
+  const visibleLayers = habitatLayers.filter(
     (layer) => !animalsResting && (layer.residentId === undefined || discovered.has(layer.residentId)),
   );
   const stageRect = habitatStageRect(habitat);
@@ -772,6 +781,7 @@ export function EcosystemScene({
               ? ` · ${adultAnimalLabel(lifecycleView.id)} ${lifecycleView.adults}只`
               : ""}
           </small>
+          <small className="ecosystem-scene__eta">{lifecycleView.remainingSecondsAtNormalSpeed === null ? "已长成 · 安心陪伴你" : lifecycleView.remainingSecondsAtNormalSpeed === 0 ? "可以收获了" : `自然成长约 ${Math.ceil(lifecycleView.remainingSecondsAtNormalSpeed / 3600)} ${state.ecosystem.world ? "游戏小时" : "小时"}${lifecycleView.boostedUntil ? " · 照料加速中" : " · 照料可加速"}`}</small>
           <small className="ecosystem-scene__produce" data-ready-count={readyProduceCount}>
             {lifecycleOutput}
             {readyProduceCount > 0
@@ -809,6 +819,7 @@ export function EcosystemScene({
               onCollect?.(habitat);
             }}
           >收获</button> : null}
+          {habitat === "garden" && onOpenPlanting ? <button type="button" className="pixel-button ecosystem-scene__plant-plan" onClick={onOpenPlanting}>种植计划</button> : null}
           <span className="ecosystem-scene__interaction-notice" aria-live="polite">
             {supplyCount <= 0
               ? `${copy.supply}用完了，仍会自然成长；补给后可加速`

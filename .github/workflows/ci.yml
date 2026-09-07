@@ -82,7 +82,7 @@ jobs:
       - run: npm run test:package
       - run: npx playwright install chromium
       - name: Functional browser E2E
-        run: npx playwright test tests/app-flow.spec.ts tests/native-preview.spec.ts --project=chromium
+        run: npx playwright test tests/app-flow.spec.ts tests/daylight.spec.ts tests/native-preview.spec.ts tests/homestead-upgrade.spec.ts tests/homestead-polish.spec.ts tests/world-merchant.spec.ts --project=chromium
       - name: Windows visual baselines
         run: npm run test:visual
       - name: Upload Playwright failure artifacts

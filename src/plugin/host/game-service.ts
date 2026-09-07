@@ -14,7 +14,10 @@ import {
   careForHabitat,
   collectHabitatProduce,
 } from "../../ecosystem/ecosystem";
-import { advanceEcosystemTo } from "../../ecosystem/lifecycle";
+import { advanceWorld, worldDate } from "../../ecosystem/world-clock";
+import { buyFromMerchant, sellToMerchant } from "../../ecosystem/merchant";
+import { claimJournalReward } from "../../ecosystem/journal";
+import { cancelPlanting, plantCrop } from "../../ecosystem/planting";
 import type { Clock } from "../../time/clock";
 import { localDateKey, SystemClock } from "../../time/clock";
 import type {
@@ -38,6 +41,7 @@ import { applyEligibleTurnUsage } from "./token-energy";
 const COMMAND_MAX_AGE_MS = 15 * 60 * 1_000;
 const COMMAND_FUTURE_TOLERANCE_MS = 5 * 60 * 1_000;
 const MAX_RECENT_COMMANDS = 128;
+const WORLD_CHECKPOINT_INTERVAL_MS = 30_000;
 const USAGE_REWARD_WINDOW_MS = 7 * 24 * 60 * 60 * 1_000;
 
 export interface GameServiceDependencies {
@@ -86,7 +90,25 @@ export class GameService {
 
   getSnapshot(sessionId: string): Promise<PublicSnapshot> {
     this.ensureActive();
-    return this.queue.run(() => this.project(this.read(), sessionId));
+    return this.queue.run(async () => {
+      const current = this.read();
+      const now = this.dependencies.clock.now();
+      const ecosystem = advanceWorld(current.ecosystem, now);
+      const next = { ...current, ecosystem };
+      // Frequent polls project from the durable anchor without rewriting the
+      // whole receipt ledger. Restart reconstructs those sub-checkpoint ticks.
+      // Long absences also checkpoint immediately, discarding time above the
+      // offline cap once rather than replaying it with each subsequent poll.
+      const storedWorld = current.ecosystem.world;
+      const checkpointDue = ecosystem.world !== undefined && (
+        storedWorld === undefined ||
+        now.getTime() - Date.parse(storedWorld.lastRealAt) >= WORLD_CHECKPOINT_INTERVAL_MS
+      );
+      if (checkpointDue) {
+        await this.domain.global.set(next);
+      }
+      return this.project(next, sessionId);
+    });
   }
 
   command(input: unknown): Promise<CommandResult> {
@@ -97,7 +119,7 @@ export class GameService {
       const storedCurrent = this.read();
       const current: HostState = {
         ...storedCurrent,
-        ecosystem: advanceEcosystemTo(storedCurrent.ecosystem, now),
+        ecosystem: advanceWorld(storedCurrent.ecosystem, now),
       };
       const today = localDateKey(now);
       const fingerprint = commandFingerprint(request);
@@ -269,7 +291,7 @@ export class GameService {
     const now = this.dependencies.clock.now();
     const current: HostState = {
       ...storedCurrent,
-      ecosystem: advanceEcosystemTo(storedCurrent.ecosystem, now),
+      ecosystem: advanceWorld(storedCurrent.ecosystem, now),
     };
     if (
       !requiresLegacyUsageRecovery(current, event.sessionId) &&
@@ -299,7 +321,7 @@ export class GameService {
     const storedCurrent = this.read();
     const current: HostState = {
       ...storedCurrent,
-      ecosystem: advanceEcosystemTo(storedCurrent.ecosystem, this.dependencies.clock.now()),
+      ecosystem: advanceWorld(storedCurrent.ecosystem, this.dependencies.clock.now()),
     };
     let next = current;
     const replayLegacyHistory = requiresLegacyUsageRecovery(current, sessionId);
@@ -360,7 +382,7 @@ export class GameService {
   }
 
   private project(state: HostState, sessionId: string): PublicSnapshot {
-    const ecosystem = advanceEcosystemTo(state.ecosystem, this.dependencies.clock.now());
+    const ecosystem = structuredClone(state.ecosystem);
     return {
       revision: state.revision,
       wallet: state.wallet,
@@ -405,7 +427,31 @@ export class GameService {
     today: string,
     now: Date,
   ): Transition {
+    const gameNow = worldDate(current.ecosystem.world);
     switch (request.type) {
+      case "merchantBuy":
+      case "merchantSell": {
+        const game = toGameState(current);
+        const result = request.type === "merchantBuy"
+          ? buyFromMerchant(game, request.itemId, request.visitId)
+          : sellToMerchant(game, request.habitat, request.visitId);
+        if (!result.ok) return { kind: "error", code: result.reason };
+        return { kind: "changed", state: { ...current, wallet: result.state.wallet, ecosystem: result.state.ecosystem } };
+      }
+      case "claimJournal":
+      case "plantCrop": {
+        const game = toGameState(current);
+        const result = request.type === "claimJournal"
+          ? claimJournalReward(game, request.questId, gameNow)
+          : plantCrop(game, request.plotId, request.seedId, gameNow);
+        if (!result.ok) return { kind: "error", code: result.reason };
+        return { kind: "changed", state: { ...current, wallet: result.state.wallet, ecosystem: result.state.ecosystem } };
+      }
+      case "cancelPlanting": {
+        const result = cancelPlanting(toGameState(current), request.plotId);
+        if (!result.ok) return { kind: "error", code: result.reason };
+        return { kind: "changed", state: { ...current, ecosystem: result.state.ecosystem } };
+      }
       case "claimDaily":
         if (current.lastGrantedLocalDate !== null && today < current.lastGrantedLocalDate) {
           return { kind: "error", code: "clock-skew" };
@@ -424,7 +470,7 @@ export class GameService {
         const result = createPaidSpin(
           toGameState(current),
           this.dependencies.rng,
-          this.dependencies.clock.now(),
+          now,
           this.dependencies.createId,
         );
         if (!result.ok) {
@@ -507,7 +553,7 @@ export class GameService {
       }
 
       case "careHabitat": {
-        const result = careForHabitat(toGameState(current), request.habitat, now);
+        const result = careForHabitat(toGameState(current), request.habitat, gameNow);
         if (!result.ok) return { kind: "error", code: "no-supply" };
         return {
           kind: "changed",
@@ -520,7 +566,7 @@ export class GameService {
       }
 
       case "collectHabitat": {
-        const result = collectHabitatProduce(toGameState(current), request.habitat, now);
+        const result = collectHabitatProduce(toGameState(current), request.habitat, gameNow);
         if (!result.ok) return { kind: "error", code: "nothing-to-collect" };
         return {
           kind: "changed",
@@ -623,6 +669,11 @@ function purchaseError(reason: "UNKNOWN_ITEM" | "ALREADY_OWNED" | "INSUFFICIENT_
 
 function commandFingerprint(request: CommandRequest): string {
   switch (request.type) {
+    case "merchantBuy": return JSON.stringify([request.sessionId, request.type, request.itemId, request.visitId]);
+    case "merchantSell": return JSON.stringify([request.sessionId, request.type, request.habitat, request.visitId]);
+    case "claimJournal": return JSON.stringify([request.type, request.questId]);
+    case "plantCrop": return JSON.stringify([request.type, request.plotId, request.seedId]);
+    case "cancelPlanting": return JSON.stringify([request.type, request.plotId]);
     case "claimDaily":
     case "insertCoin":
       return JSON.stringify([request.sessionId, request.type]);

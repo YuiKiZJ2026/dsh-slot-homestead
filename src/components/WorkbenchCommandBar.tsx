@@ -1,19 +1,25 @@
-import { useState } from "react";
+import { useState, type ReactNode } from "react";
 import type { GameState } from "../domain/types";
 import { CurrentGoal } from "./CurrentGoal";
 
-export type WorkbenchUtilityPanel = "collection" | "shop" | "settings";
+export type WorkbenchUtilityPanel = "collection" | "shop" | "settings" | "journal" | "merchant";
 
 export function WorkbenchCommandBar({
   state,
   tokenProgress,
+  journalControl,
+  worldControl,
 }: {
   state: GameState;
   tokenProgress?: number;
+  journalControl?: ReactNode;
+  worldControl?: ReactNode;
 }) {
   return (
     <section className="workbench-command-bar" role="region" aria-label="工作台控制">
       <CurrentGoal state={state} tokenProgress={tokenProgress} />
+      {worldControl}
+      {journalControl}
     </section>
   );
 }

@@ -1,4 +1,7 @@
 import { z } from "zod";
+import { journalSchema } from "../ecosystem/journal";
+import { worldSchema } from "../ecosystem/world-clock";
+import { merchantStateSchema } from "../ecosystem/merchant";
 import { TABLE_POSITION_IDS } from "../domain/table-positions";
 import { createInitialEcosystemState, type DateKey, type GameState } from "../domain/types";
 
@@ -89,6 +92,7 @@ const EcosystemFishLifeSchema = z.strictObject({
   boostedUntil: NullableLifecycleTimestampSchema,
 });
 const EcosystemPlotLifeSchema = z.strictObject({
+  nextSeedId: IdentifierSchema.optional(),
   seedId: IdentifierSchema.nullable(),
   growth: LifecycleGrowthSchema,
   readyYield: NonNegativeIntegerSchema.max(1),
@@ -119,6 +123,9 @@ const EcosystemLifecycleSchema = z.strictObject({
   produce: safeRecord(IdentifierSchema, NonNegativeIntegerSchema),
 });
 const EcosystemStateSchema = z.strictObject({
+  journal: journalSchema.optional(),
+  world: worldSchema.optional(),
+  merchant: merchantStateSchema.optional(),
   discovered: UniqueIdentifierArraySchema,
   selected: z.strictObject({
     aquarium: IdentifierSchema,

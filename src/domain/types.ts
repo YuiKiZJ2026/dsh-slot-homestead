@@ -65,6 +65,9 @@ export interface GameSettings {
 }
 
 export interface EcosystemState {
+  journal?: HomesteadJournal;
+  world?: HomesteadWorld;
+  merchant?: MerchantLedger;
   discovered: string[];
   selected: Record<HabitatId, string>;
   supplies: Record<EcosystemSupplyKey, number>;
@@ -74,6 +77,27 @@ export interface EcosystemState {
   lifecycle: EcosystemLifecycleState;
 }
 
+export interface HomesteadWorld {
+  elapsedMs: number;
+  lastRealAt: string;
+  seed: number;
+}
+
+export interface MerchantLedger {
+  visitId: string;
+  purchased: Record<string, number>;
+  soldCount: number;
+}
+
+export interface HomesteadJournal {
+  day: string;
+  care: HabitatId[];
+  harvests: number;
+  dailyClaimed: string[];
+  milestonesClaimed: string[];
+  xp: number;
+}
+
 export interface EcosystemFishLife {
   count: number;
   growth: number;
@@ -81,6 +105,7 @@ export interface EcosystemFishLife {
 }
 
 export interface EcosystemPlotLife {
+  nextSeedId?: string;
   seedId: string | null;
   growth: number;
   readyYield: number;

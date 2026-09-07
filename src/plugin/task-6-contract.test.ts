@@ -12,9 +12,12 @@ describe("Task 6 browser CI and visual contracts", () => {
   it("runs functional browser E2E after Chromium install and uploads failures", () => {
     const workflow = read(".github/workflows/ci.yml");
     const install = workflow.indexOf("npx playwright install chromium");
-    const functional = workflow.indexOf(
-      "npx playwright test tests/app-flow.spec.ts tests/native-preview.spec.ts --project=chromium",
-    );
+    const functionalCommand = /run: (npx playwright test [^\r\n]+)/.exec(workflow)?.[1] ?? "";
+    expect(functionalCommand).toContain("--project=chromium");
+    for (const suite of ["app-flow", "daylight", "native-preview", "homestead-upgrade", "homestead-polish", "world-merchant"]) {
+      expect(functionalCommand).toContain(`tests/${suite}.spec.ts`);
+    }
+    const functional = workflow.indexOf(functionalCommand);
 
     expect(install).toBeGreaterThan(-1);
     expect(functional).toBeGreaterThan(install);

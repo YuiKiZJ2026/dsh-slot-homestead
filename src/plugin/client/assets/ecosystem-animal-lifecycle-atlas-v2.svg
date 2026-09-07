@@ -1,13 +1,18 @@
 <svg xmlns="http://www.w3.org/2000/svg" width="600" height="600" viewBox="0 0 600 600" shape-rendering="crispEdges">
+  <defs>
+    <pattern id="soft-fur" width="22" height="18" patternUnits="userSpaceOnUse"><rect width="22" height="18" fill="#ead2aa"/><path d="M3 5h6v3H3zM14 13h5v2h-5z" fill="#f6e1bb"/><path d="M10 8h4v2h-4z" fill="#d4b991"/></pattern>
+    <pattern id="warm-feathers" width="24" height="18" patternUnits="userSpaceOnUse"><rect width="24" height="18" fill="#e99a24"/><path d="M5 5h7v3H5zM17 13h5v2h-5z" fill="#f4b039"/><path d="M8 11h5v2H8z" fill="#d68422"/></pattern>
+  </defs>
   <style>
     .ol{stroke:#4b291d;stroke-width:7;stroke-linejoin:miter;stroke-linecap:square}
     .ol2{stroke:#6b3823;stroke-width:5;stroke-linejoin:miter;stroke-linecap:square}
     .ink{fill:#291918}.deep{fill:#6b3823}.rust{fill:#a84b2f}.red{fill:#d35a38}
-    .yellow{fill:#e99a24}.gold{fill:#ffc94d}.cream{fill:#ffe3a0}.white{fill:#fff4cf}
-    .fur{fill:#c99662}.fur2{fill:#8f5f43}.pale{fill:#ead2aa}.shadow{fill:#aa805e}
+    .yellow{fill:url(#warm-feathers)}.gold{fill:#ffc94d}.cream{fill:#ffe3a0}.white{fill:#fff4cf}
+    .fur{fill:#c99662}.fur2{fill:#8f5f43}.pale{fill:url(#soft-fur)}.shadow{fill:#aa805e}
     .teal{fill:#527c70}.grass{fill:#7f8b45}
   </style>
 
+  <!-- Original native-source refinement: small interior clusters only. Keep every 200px cell and silhouette unchanged. -->
   <!-- Row 1: chicken; chick, pullet, adult hen. -->
   <g transform="translate(0 0)">
     <path class="yellow ol" d="M66 86H78V70H88V62H112V66H122V78H134V90H142V122H134V134H122V142H82V138H66V130H58V98H66Z"/>
@@ -26,19 +31,30 @@
     <rect class="ink" x="126" y="78" width="11" height="11"/>
     <rect class="white" x="129" y="78" width="4" height="4"/>
     <path class="gold ol2" d="M142 92H164L150 106H140Z"/>
-    <path class="rust" d="M72 102H102V130H84V122H72Z"/>
+    <!-- Layered pullet feathers follow the wing instead of a flat square patch. -->
+    <path fill="#ae582d" d="M70 102H84V100H94V106H102V118H98V130H86V126H78V120H70Z"/>
+    <path fill="#d9832c" d="M74 104H84V108H94V114H98V120H88V116H80V112H74Z"/>
+    <path fill="#f7b33e" d="M76 104H84V107H88V110H82V108H76Z"/>
+    <path fill="#944a2c" d="M82 118H87V124H82ZM91 122H96V127H91Z"/>
+    <path fill="#f9b43e" d="M110 110H116V115H110ZM120 124H125V128H120Z"/>
   </g>
   <g transform="translate(400 0)">
     <path class="yellow ol" d="M50 68H68V50H80V40H112V46H128V62H144V78H156V96H164V126H156V140H144V150H126V158H78V154H58V144H46V128H38V88H46Z"/>
     <path class="rust ol" d="M52 82L34 48L26 76L10 66L18 100L8 112H34L54 120Z"/>
     <path class="red ol" d="M82 44V22H94V36H104V16H116V34H128V22H138V54H112Z"/>
     <path class="gold ol2" d="M84 152H102V166H88V184H68V172H82ZM120 154H138V168H154V182H124V168H120Z"/>
-    <path class="rust ol2" d="M66 100H112V140H88V132H66Z"/>
-    <path class="gold" d="M72 104H96V116H72Z"/>
+    <!-- Smaller overlapping feather tips replace the former heavy outlined wing rectangle. -->
+    <path fill="#b45b2c" d="M64 102H76V98H94V102H106V110H114V124H108V134H98V140H86V134H76V126H68V118H64Z"/>
+    <path fill="#d5832c" d="M70 103H82V106H94V110H104V117H108V123H96V119H88V114H78V111H70Z"/>
+    <path fill="#f1aa37" d="M72 102H82V105H90V108H98V113H91V111H82V108H72Z"/>
+    <path fill="#91472b" d="M76 118H82V123H87V129H82V126H76ZM90 122H96V128H101V134H96V131H90Z"/>
+    <path fill="#e79530" d="M103 119H108V124H103ZM90 132H96V136H90Z"/>
     <rect class="ink" x="140" y="72" width="12" height="12"/>
     <rect class="white" x="143" y="72" width="4" height="4"/>
     <path class="gold ol2" d="M156 88H184L166 104H154Z"/>
     <path class="red ol2" d="M142 106H158V120H150V132H140Z"/>
+    <path fill="#ffd15c" d="M114 120H120V125H114ZM125 132H131V136H125ZM105 145H113V148H105Z"/>
+    <path fill="#d4872d" d="M85 162H90V166H85ZM125 164H130V168H125Z"/>
   </g>
 
   <!-- Row 2: lop rabbit; kit, juvenile, adult. -->
@@ -55,25 +71,40 @@
   <g transform="translate(200 200)">
     <path class="pale ol" d="M54 84H68V66H82V56H116V62H132V78H144V92H154V126H146V140H132V152H112V158H70V154H54V144H46V98H54Z"/>
     <path class="fur ol" d="M68 72L44 34H58L84 60L88 80ZM122 68L146 30H160L148 82L136 96Z"/>
-    <path class="fur2 ol2" d="M56 120H82V150H64Z"/>
+    <path fill="#bb9169" d="M56 122H68V119H76V125H82V142H77V150H66V144H60Z"/>
+    <path fill="#d2ae82" d="M61 124H69V127H76V135H71V141H66V135H61Z"/>
+    <path fill="#a37754" d="M68 141H74V147H68Z"/>
     <rect class="ink" x="132" y="86" width="11" height="11"/>
     <rect class="white" x="135" y="86" width="4" height="4"/>
     <rect class="rust" x="148" y="108" width="10" height="8"/>
     <rect class="white ol2" x="32" y="106" width="20" height="24"/>
     <rect class="fur2" x="74" y="150" width="20" height="14"/>
     <rect class="fur2" x="120" y="148" width="28" height="16"/>
+    <!-- Inner-ear down, muzzle tufts and toe marks stay inside the existing rabbit shape. -->
+    <path fill="#ddb185" d="M57 43H61V49H65V55H69V61H65V57H61V51H57ZM149 45H153V59H149V69H145V57H149Z"/>
+    <path fill="#f8e4bf" d="M119 116H127V120H133V124H123V121H119ZM91 122H97V126H91ZM100 134H106V138H100Z"/>
+    <path fill="#b7845d" d="M77 152H89V157H77ZM125 151H143V157H125Z"/>
+    <path fill="#e7bc8f" d="M81 153H84V157H81ZM131 153H134V157H131ZM138 153H141V157H138Z"/>
   </g>
   <g transform="translate(400 200)">
     <path class="pale ol" d="M40 76H58V56H74V46H120V52H138V68H152V82H164V100H172V134H164V148H150V158H132V166H68V162H48V152H36V138H28V94H36Z"/>
     <path class="fur ol" d="M58 62L28 18H44L80 48L88 78ZM132 58L164 16H182L166 82L150 104Z"/>
-    <path class="fur2 ol2" d="M42 114H76V158H52Z"/>
-    <path class="shadow" d="M84 60H116V72H128V86H90V78H84Z"/>
+    <path fill="#b88e66" d="M42 118H52V112H64V116H73V128H76V148H67V158H54V150H48V136H42Z"/>
+    <path fill="#d5b18a" d="M48 120H58V119H65V127H69V136H63V144H56V138H52V131H48Z"/>
+    <path fill="#a27754" d="M57 144H65V149H69V154H61V151H57Z"/>
+    <path fill="#c7a27d" d="M85 62H99V65H111V73H119V78H126V83H113V79H101V74H91V70H85Z"/>
+    <path fill="#e3c39a" d="M90 62H98V65H107V69H98V67H90ZM111 73H117V76H111Z"/>
     <rect class="ink" x="148" y="78" width="12" height="12"/>
     <rect class="white" x="151" y="78" width="4" height="4"/>
     <rect class="rust" x="166" y="105" width="11" height="9"/>
     <rect class="white ol2" x="16" y="106" width="24" height="28"/>
     <rect class="fur2" x="64" y="158" width="28" height="18"/>
     <rect class="fur2" x="132" y="156" width="34" height="20"/>
+    <path fill="#dfb387" d="M40 28H45V35H52V40H57V46H62V51H57V48H52V42H46V36H40ZM168 32H173V47H168V60H163V72H158V78H154V70H158V59H163V45H168Z"/>
+    <path fill="#f8e3bd" d="M132 112H140V116H149V121H155V127H145V124H136V120H132ZM87 123H95V128H87ZM105 139H113V143H105Z"/>
+    <path fill="#cfab82" d="M107 107H113V112H107ZM92 142H98V147H92ZM119 130H125V135H119Z"/>
+    <path fill="#bb8c63" d="M68 161H86V169H68ZM137 160H161V169H137Z"/>
+    <path fill="#e9be91" d="M73 163H77V168H73ZM82 163H85V168H82ZM143 163H147V169H143ZM153 163H157V169H153Z"/>
   </g>
 
   <!-- Row 3: alpaca; cria, juvenile, adult. -->
@@ -96,6 +127,13 @@
     <rect class="white" x="151" y="44" width="3" height="3"/>
     <rect class="deep" x="160" y="70" width="11" height="8"/>
     <path class="cream" d="M60 82H112V94H124V110H104V100H60Z"/>
+    <!-- Juvenile fleece uses separated warm clusters, with soft inner leg and hoof highlights. -->
+    <path fill="#d8ae77" d="M51 96H59V93H67V99H74V104H66V108H55V103H51ZM82 109H90V106H98V111H105V118H97V122H86V118H82ZM118 120H125V117H134V123H139V131H132V135H121V131H118Z"/>
+    <path fill="#b58158" d="M56 130H66V135H73V139H64V143H56ZM83 130H92V126H98V132H107V139H98V144H88V138H83Z"/>
+    <path fill="#e7c38d" d="M55 96H61V100H55ZM88 109H94V113H88ZM123 121H129V125H123Z"/>
+    <path fill="#c49970" d="M123 62H128V71H123ZM129 80H135V86H129ZM142 92H147V96H142Z"/>
+    <path fill="#bb8c61" d="M55 155H62V169H55ZM89 157H96V168H89ZM127 157H134V173H127Z"/>
+    <path fill="#d9ac7c" d="M54 171H64V175H54ZM88 170H98V174H88ZM126 174H136V178H126Z"/>
   </g>
   <g transform="translate(400 400)">
     <path class="fur ol" d="M26 78H50V64H128V72H148V92H160V142H148V156H128V164H54V160H34V148H22V132H14V94H22Z"/>
@@ -106,7 +144,15 @@
     <rect class="white" x="161" y="30" width="4" height="4"/>
     <rect class="deep" x="172" y="62" width="12" height="9"/>
     <path class="cream" d="M42 70H116V82H132V102H112V92H76V102H52V90H42Z"/>
-    <path class="shadow" d="M44 118H136V148H120V138H96V150H70V138H44Z"/>
+    <!-- Adult fleece: overlapping, separated curls replace the broad lower-body stripe. -->
+    <path fill="#af835c" d="M35 122H47V118H55V124H65V134H59V141H49V138H40V134H35ZM68 131H77V125H89V131H101V139H94V150H80V146H71V142H68ZM106 120H117V116H127V122H139V131H134V140H121V145H111V138H105Z"/>
+    <path fill="#d7ab74" d="M37 94H48V90H60V97H68V107H58V113H47V108H37ZM70 107H79V102H91V109H102V118H93V125H81V120H73V116H70ZM116 101H124V99H134V105H145V115H136V120H125V116H118Z"/>
+    <path fill="#ebc58c" d="M41 96H49V100H41ZM76 109H84V113H76ZM122 103H130V107H122Z"/>
+    <path fill="#c89a6b" d="M45 125H53V130H59V134H51V132H45ZM77 134H85V138H91V143H81V140H77ZM118 126H126V131H133V135H124V138H118Z"/>
+    <path fill="#c8a079" d="M126 44H132V52H126ZM129 62H136V71H129ZM142 83H148V90H142ZM154 96H161V100H154Z"/>
+    <path fill="#f5dfb8" d="M138 26H146V30H153V34H144V32H138ZM142 72H148V76H142Z"/>
+    <path fill="#b9895f" d="M36 163H45V180H36ZM75 166H84V178H75ZM122 166H131V182H122Z"/>
+    <path fill="#d6a879" d="M34 182H46V187H34ZM72 181H85V186H72ZM120 185H133V190H120Z"/>
     <rect class="teal" x="126" y="82" width="10" height="8"/>
   </g>
 </svg>

@@ -618,6 +618,7 @@ describe("EcosystemScene", () => {
     );
     await userEvent.click(screen.getByRole("button", { name: "收获" }));
     expect(onCollect).toHaveBeenCalledWith("garden");
+    expect(screen.queryByText(/已经收入仓库/)).not.toBeInTheDocument();
   });
 
   it("enables one habitat harvest when a non-selected plot is ready", async () => {

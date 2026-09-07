@@ -167,7 +167,8 @@ export function reconcileEcosystemLifecycle(current: EcosystemState): EcosystemS
   for (const seedId of SEED_IDS) {
     const plotId = SEED_PLOT_BY_ID[seedId];
     const plot = next.lifecycle.plots[plotId];
-    if (next.discovered.includes(seedId) && plot.seedId !== seedId) {
+    if (next.discovered.includes(seedId) && plot.seedId === null &&
+      !Object.values(next.lifecycle.plots).some((entry) => entry.seedId === seedId)) {
       next.lifecycle.plots[plotId] = createPlotLife(seedId, plot.generation > 0 ? plot.generation : 1);
     }
   }
@@ -323,6 +324,11 @@ export function collectHabitatProduce(
       });
       plot.growth = 0;
       plot.readyYield = 0;
+      if (plot.nextSeedId !== undefined) {
+        plot.seedId = plot.nextSeedId;
+        ecosystem.selected.garden = plot.nextSeedId;
+        delete plot.nextSeedId;
+      }
       plot.generation += 1;
     }
   } else {
@@ -391,7 +397,7 @@ export function getHabitatLifecycleView(
   }
 
   if (habitat === "garden") {
-    const plotId = SEED_PLOT_BY_ID[id] ?? null;
+    const plotId = (Object.entries(ecosystem.lifecycle.plots).find(([, plot]) => plot.seedId === id)?.[0] ?? null) as EcosystemPlotId | null;
     const plot = plotId === null ? createPlotLife(null, 0) : ecosystem.lifecycle.plots[plotId];
     const product = CROP_PRODUCTS[id];
     const ready = plot.readyYield > 0;
@@ -690,6 +696,9 @@ function createLivestockLife(): EcosystemLivestockLife {
 
 function cloneEcosystem(current: EcosystemState): EcosystemState {
   return {
+    ...(current.journal ? { journal: structuredClone(current.journal) } : {}),
+    ...(current.world ? { world: { ...current.world } } : {}),
+    ...(current.merchant ? { merchant: structuredClone(current.merchant) } : {}),
     discovered: [...current.discovered],
     selected: { ...current.selected },
     supplies: { ...current.supplies },

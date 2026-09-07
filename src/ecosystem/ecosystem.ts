@@ -1,5 +1,6 @@
 import type { EcosystemState, GameState, HabitatId } from "../domain/types";
 import { ECOSYSTEM_ITEM_BY_ID } from "./catalog";
+import { recordJournalCare, recordJournalHarvest } from "./journal";
 import {
   advanceEcosystemByWork,
   advanceEcosystemTo,
@@ -83,7 +84,7 @@ export function careForHabitat(
     ok: true,
     state: {
       ...state,
-      ecosystem,
+      ecosystem: recordJournalCare(ecosystem, habitat, now),
     },
   };
 }
@@ -100,7 +101,7 @@ export function collectHabitatProduce(
     state: {
       ...state,
       wallet: state.wallet + result.totalCoins,
-      ecosystem: result.ecosystem,
+      ecosystem: recordJournalHarvest(result.ecosystem, result.collected.reduce((sum, item) => sum + item.count, 0), now),
     },
     collected: result.collected,
     totalCoins: result.totalCoins,
@@ -163,6 +164,9 @@ function cloneEcosystem(state: GameState): GameState["ecosystem"] {
 
 function cloneEcosystemState(ecosystem: EcosystemState): EcosystemState {
   return {
+    ...(ecosystem.journal ? { journal: structuredClone(ecosystem.journal) } : {}),
+    ...(ecosystem.world ? { world: { ...ecosystem.world } } : {}),
+    ...(ecosystem.merchant ? { merchant: structuredClone(ecosystem.merchant) } : {}),
     discovered: [...ecosystem.discovered],
     selected: { ...ecosystem.selected },
     supplies: { ...ecosystem.supplies },

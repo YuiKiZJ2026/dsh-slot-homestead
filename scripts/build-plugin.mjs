@@ -145,6 +145,9 @@ assertFiles(lib, [
 async function packOffline() {
   const require = createRequire(import.meta.url);
   const npmPackPath = [
+    process.env.npm_execpath === undefined
+      ? ""
+      : resolve(dirname(process.env.npm_execpath), "../node_modules/libnpmpack"),
     process.env.CODEX_PRIMARY_RUNTIME_ROOT === undefined
       ? ""
       : resolve(process.env.CODEX_PRIMARY_RUNTIME_ROOT, "dependencies/node/lib/node_modules/npm/node_modules/libnpmpack"),

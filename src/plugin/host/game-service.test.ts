@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { FixedClock } from "../../time/clock";
 import { createInitialEcosystemState } from "../../domain/types";
+import { getMerchantView } from "../../ecosystem/merchant";
 import type {
   CommandRequest,
   EligibleTurnUsage,
@@ -12,6 +13,175 @@ import { GameService } from "./game-service";
 import type { SessionEventLike, SessionLike } from "./session-usage";
 
 const NOW = new Date("2026-08-26T04:00:00.000Z");
+
+function merchantState(): HostState {
+  const initial = state({ wallet: 99 });
+  initial.ecosystem.world = { elapsedMs: 0, lastRealAt: NOW.toISOString(), seed: 42 };
+  const arrival = getMerchantView(initial.ecosystem).nextArrivalDay;
+  initial.ecosystem.world.elapsedMs = ((arrival - 1) * 24 + 4) * 60 * 60_000;
+  initial.ecosystem.lifecycle.lastSimulatedAt = new Date(Date.UTC(2000, 0, arrival, 10)).toISOString();
+  return initial;
+}
+
+describe("durable merchant integration", () => {
+  it("buys once across replay, stale revisions, concurrent commands and restart", async () => {
+    const domain = new MemoryDomain(merchantState());
+    const host = service(domain);
+    const view = getMerchantView(domain.persisted().ecosystem);
+    const offer = view.offers.find(item => item.kind === "supply")!;
+    const trade = { ...request("claimDaily", 950), type: "merchantBuy", itemId: offer.itemId, visitId: view.visitId! };
+    const [bought, competing] = await Promise.all([host.command(trade), host.command({ ...trade, commandId: request("claimDaily", 951).commandId })]);
+    expect(bought).toMatchObject({ status: 200, snapshot: { wallet: 99 - offer.price, revision: 1 } });
+    expect(competing).toMatchObject({ status: 409, errorCode: "revision-conflict" });
+    expect(await service(domain).command(trade)).toEqual(bought);
+    expect(getMerchantView((await service(domain).getSnapshot("session-1")).ecosystem).offers.find(item => item.itemId === offer.itemId)?.remaining).toBe(offer.remaining - 1);
+    expect(domain.writeCount).toBe(1);
+    expect(await host.command({ ...trade, visitId: "forged-visit" })).toMatchObject({ status: 409, errorCode: "command-id-reused" });
+    expect(await host.command({ ...trade, commandId: request("claimDaily", 952).commandId, expectedRevision: 1, visitId: "old-visit" })).toMatchObject({ status: 409, errorCode: "stale-visit" });
+    expect(domain.persisted().wallet).toBe(99 - offer.price);
+  });
+
+  it("does not charge or retain stock usage on a failed write and retries safely", async () => {
+    const initial = merchantState();
+    const domain = new MemoryDomain(initial);
+    const host = service(domain);
+    const view = getMerchantView(initial.ecosystem);
+    const offer = view.offers.find(item => item.kind === "supply")!;
+    const trade = { ...request("claimDaily", 953), type: "merchantBuy", itemId: offer.itemId, visitId: view.visitId! };
+    domain.failNextWrite = true;
+    await expect(host.command(trade)).rejects.toThrow("storage unavailable");
+    expect(domain.persisted()).toEqual(initial);
+    expect(await host.command(trade)).toMatchObject({ status: 200, snapshot: { wallet: 99 - offer.price } });
+    expect(getMerchantView(domain.persisted().ecosystem).offers.find(item => item.itemId === offer.itemId)?.remaining).toBe(offer.remaining - 1);
+  });
+
+  it("sells ready crops atomically, receipts the sale once, and cannot resell history", async () => {
+    const initial = merchantState();
+    initial.ecosystem.lifecycle.plots["1"].growth = 100;
+    initial.ecosystem.lifecycle.plots["1"].readyYield = 1;
+    const domain = new MemoryDomain(initial);
+    const host = service(domain);
+    const trade = { ...request("claimDaily", 954), type: "merchantSell", habitat: "garden", visitId: getMerchantView(initial.ecosystem).visitId! };
+    const sold = await host.command(trade);
+    expect(sold.status).toBe(200);
+    expect(sold.snapshot.wallet).toBeGreaterThan(initial.wallet);
+    expect(sold.snapshot.ecosystem.lifecycle.produce.carrot).toBe(1);
+    expect(sold.snapshot.ecosystem.merchant?.soldCount).toBe(1);
+    expect(await service(domain).command(trade)).toEqual(sold);
+    expect(await host.command({ ...trade, ...request("claimDaily", 955, 1), type: "merchantSell" })).toMatchObject({ status: 409, errorCode: "nothing-to-harvest" });
+    expect(domain.writeCount).toBe(1);
+    expect(() => host.command({ ...trade, habitat: "aquarium" })).toThrow();
+  });
+
+  it("rejects a stale visit after a saved clock progresses past departure", async () => {
+    const initial = merchantState();
+    const oldView = getMerchantView(initial.ecosystem);
+    const clock = new FixedClock(NOW);
+    const domain = new MemoryDomain(initial);
+    const host = service(domain, clock);
+    clock.set(new Date(NOW.getTime() + 24 * 60_000));
+    const later = await host.getSnapshot("session-1");
+    const upcomingView = getMerchantView(later.ecosystem);
+    expect(upcomingView.present).toBe(false);
+    expect(upcomingView.visitId).not.toBe(oldView.visitId);
+    const savedBeforeRejectedTrades = domain.persisted();
+    const result = await host.command({ ...request("claimDaily", 956), type: "merchantBuy", itemId: oldView.offers[0]!.itemId, visitId: oldView.visitId!, issuedAt: clock.now().toISOString() });
+    expect(result).toMatchObject({ status: 409, errorCode: "stale-visit" });
+    const tooEarly = await host.command({ ...request("claimDaily", 957), type: "merchantBuy", itemId: upcomingView.offers[0]!.itemId, visitId: upcomingView.visitId!, issuedAt: clock.now().toISOString() });
+    expect(tooEarly).toMatchObject({ status: 409, errorCode: "merchant-away" });
+    expect(domain.persisted().wallet).toBe(99);
+    expect(domain.persisted()).toEqual(savedBeforeRejectedTrades);
+    expect(getMerchantView(domain.persisted().ecosystem).offers).toEqual(upcomingView.offers);
+  });
+});
+
+describe("homestead journal host integration", () => {
+  it("refunds a cancelled planting plan once across replay and restart without losing harvest", async () => {
+    const initial = state();
+    const plot = initial.ecosystem.lifecycle.plots["1"];
+    plot.growth = 100;
+    plot.readyYield = 1;
+    plot.nextSeedId = "carrot-seed";
+    initial.ecosystem.supplies.fertilizer = 0;
+    const domain = new MemoryDomain(initial);
+    const cancel = { ...request("claimDaily", 420), type: "cancelPlanting", plotId: "1" };
+    const first = await service(domain).command(cancel);
+    expect(first).toMatchObject({ status: 200, snapshot: { revision: 1, ecosystem: { supplies: { fertilizer: 1 } } } });
+    expect(first.snapshot.ecosystem.lifecycle.plots["1"]).toMatchObject({ growth: 100, readyYield: 1, seedId: "carrot-seed" });
+    expect(first.snapshot.ecosystem.lifecycle.plots["1"].nextSeedId).toBeUndefined();
+    expect(await service(domain).command(cancel)).toEqual(first);
+    const duplicate = await service(domain).command({ ...cancel, ...request("claimDaily", 421, 1), type: "cancelPlanting" });
+    expect(duplicate).toMatchObject({ status: 409, errorCode: "no-planting-plan" });
+    expect(domain.persisted().ecosystem.supplies.fertilizer).toBe(1);
+    expect(domain.writeCount).toBe(1);
+    expect(await service(domain).command({ ...cancel, plotId: "2" })).toMatchObject({ status: 409, errorCode: "command-id-reused" });
+  });
+
+  it("serializes competing cancellations, keeps stale revisions from refunding twice, and rejects invalid ids", async () => {
+    const initial = state();
+    initial.ecosystem.lifecycle.plots["1"].nextSeedId = "carrot-seed";
+    const domain = new MemoryDomain(initial);
+    const host = service(domain);
+    const cancel = { ...request("claimDaily", 422), type: "cancelPlanting", plotId: "1" };
+    const results = await Promise.all([host.command(cancel), host.command({ ...cancel, commandId: request("claimDaily", 423).commandId })]);
+    expect(results.map(result => result.status)).toEqual([200, 409]);
+    expect(results[1].errorCode).toBe("revision-conflict");
+    expect(domain.persisted().ecosystem.supplies.fertilizer).toBe(2);
+    for (const plotId of ["__proto__", "constructor", "0", "7"]) {
+      expect(() => host.command({ ...cancel, plotId })).toThrow();
+    }
+    expect(domain.writeCount).toBe(1);
+  });
+
+  it("does not retain a refund when storage fails and safely retries the same command", async () => {
+    const initial = state();
+    initial.ecosystem.lifecycle.plots["1"].nextSeedId = "carrot-seed";
+    initial.ecosystem.supplies.fertilizer = 998;
+    const domain = new MemoryDomain(initial);
+    domain.failNextWrite = true;
+    const host = service(domain);
+    const cancel = { ...request("claimDaily", 424), type: "cancelPlanting", plotId: "1" };
+    await expect(host.command(cancel)).rejects.toThrow("storage unavailable");
+    expect(domain.persisted()).toEqual(initial);
+    expect(await host.command(cancel)).toMatchObject({ status: 200, snapshot: { ecosystem: { supplies: { fertilizer: 999 } } } });
+    expect(domain.persisted().ecosystem.lifecycle.plots["1"].nextSeedId).toBeUndefined();
+  });
+
+  it("persists care, grants once across command replay and service restart", async () => {
+    const domain = new MemoryDomain(state());
+    const host = service(domain);
+    const care = await host.command({ ...request("claimDaily", 401), type: "careHabitat", habitat: "aquarium" });
+    expect(care.status).toBe(200);
+    const claim = { ...request("claimDaily", 402, care.snapshot.revision), type: "claimJournal", questId: "daily-care" };
+    const granted = await host.command(claim);
+    expect(granted.status).toBe(200);
+    expect(granted.snapshot.ecosystem.journal?.xp).toBe(10);
+    expect(granted.snapshot.ecosystem.supplies.fishFeed).toBe(1);
+    const replay = await service(domain).command(claim);
+    expect(replay.snapshot.ecosystem.journal?.xp).toBe(10);
+    const duplicate = await service(domain).command({ ...claim, ...request("claimDaily", 403, granted.snapshot.revision), type: "claimJournal", questId: "daily-care" });
+    expect(duplicate.status).toBe(409);
+    expect(duplicate.errorCode).toBe("quest-unavailable");
+    expect(domain.persisted().ecosystem.journal?.xp).toBe(10);
+  });
+  it("serializes competing sowing requests and rejects forged plot identifiers", async () => {
+    const domain = new MemoryDomain(state());
+    const host = service(domain);
+    const base = { ...request("claimDaily", 410), type: "plantCrop", plotId: "2", seedId: "carrot-seed" };
+    const results = await Promise.all([host.command(base), host.command({ ...base, commandId: request("claimDaily", 411).commandId })]);
+    expect(results.map(result => result.status)).toEqual([200, 409]);
+    expect(domain.persisted().ecosystem.supplies.fertilizer).toBe(0);
+    expect(domain.persisted().ecosystem.lifecycle.plots["2"].seedId).toBe("carrot-seed");
+    expect(() => host.command({ ...base, plotId: "__proto__" })).toThrow();
+  });
+  it("retains a beta 2 save and the new journal through schema round trips", () => {
+    const old = state({ wallet: 25, inventory: ["plant"] });
+    const migrated = hostStateSchema.parse(old);
+    expect(migrated.wallet).toBe(25);
+    expect(migrated.inventory).toEqual(["plant"]);
+    expect(migrated.ecosystem.journal).toBeUndefined();
+  });
+});
 
 class MemoryDomain implements GameDomain {
   failNextWrite = false;
@@ -162,21 +332,105 @@ function moveSessionHistoryTo(session: SessionLike, baseTime: Date): SessionLike
 }
 
 describe("authoritative game service", () => {
-  it("projects real-time ecology without writing on every polling snapshot", async () => {
+  it("persists the independent clock across polls and restart without changing the economy revision", async () => {
     const clock = new FixedClock(NOW);
     const seeded = createInitialEcosystemState();
     seeded.lifecycle.lastSimulatedAt = NOW.toISOString();
     const domain = new MemoryDomain(state({ ecosystem: seeded }));
     const game = service(domain, clock);
 
-    clock.set(new Date(NOW.getTime() + 6 * 60 * 60 * 1_000));
+    const installed = await game.getSnapshot("session-1");
+    expect(installed.ecosystem.world).toMatchObject({ elapsedMs: 0 });
+    clock.set(new Date(NOW.getTime() + 12 * 60 * 1_000));
     const first = await game.getSnapshot("session-1");
     const second = await game.getSnapshot("session-1");
 
     expect(first.ecosystem.lifecycle.fish.goldfish?.growth).toBe(24);
     expect(second.ecosystem.lifecycle).toEqual(first.ecosystem.lifecycle);
-    expect(domain.writeCount).toBe(0);
-    expect(domain.persisted().ecosystem.lifecycle.fish.goldfish?.growth).toBe(0);
+    expect(first.revision).toBe(0);
+    expect(domain.writeCount).toBe(2);
+    expect(domain.persisted().ecosystem.lifecycle.fish.goldfish?.growth).toBe(24);
+    expect(first.ecosystem.world?.elapsedMs).toBe(6 * 60 * 60 * 1_000);
+    expect(await service(domain, clock).getSnapshot("session-1")).toEqual(first);
+  });
+
+  it("does not expose an unpersisted clock initialization after a storage failure", async () => {
+    const domain = new MemoryDomain(state());
+    const clock = new FixedClock(NOW);
+    const game = service(domain, clock);
+    domain.failNextWrite = true;
+    await expect(game.getSnapshot("session-1")).rejects.toThrow("storage unavailable");
+    expect(domain.persisted().ecosystem.world).toBeUndefined();
+    clock.set(new Date(NOW.getTime() + 60_000));
+    expect((await game.getSnapshot("session-1")).ecosystem.world?.elapsedMs).toBe(0);
+  });
+
+  it("keeps two-second projections smooth while checkpointing only once per thirty real seconds", async () => {
+    const domain = new MemoryDomain(state());
+    const clock = new FixedClock(NOW);
+    const game = service(domain, clock);
+    await game.getSnapshot("session-1");
+    for (let index = 1; index <= 20; index += 1) {
+      clock.set(new Date(NOW.getTime() + index * 2_000));
+      const [first, second] = await Promise.all([
+        game.getSnapshot("session-1"), game.getSnapshot("session-2"),
+      ]);
+      expect(first.ecosystem.world?.elapsedMs).toBe(index * 2_000 * 30);
+      expect(second.ecosystem.world).toEqual(first.ecosystem.world);
+      expect(first.revision).toBe(0);
+    }
+    expect(domain.writeCount).toBe(2);
+    expect(domain.persisted().ecosystem.world?.elapsedMs).toBe(30_000 * 30);
+    const restored = await service(domain, clock).getSnapshot("session-1");
+    expect(restored.ecosystem.world?.elapsedMs).toBe(40_000 * 30);
+    expect(domain.writeCount).toBe(2);
+  });
+
+  it("rejects a failed clock checkpoint and reconstructs its elapsed interval on retry", async () => {
+    const domain = new MemoryDomain(state());
+    const clock = new FixedClock(NOW);
+    const game = service(domain, clock);
+    await game.getSnapshot("session-1");
+    clock.set(new Date(NOW.getTime() + 30_000));
+    domain.failNextWrite = true;
+    await expect(game.getSnapshot("session-1")).rejects.toThrow("storage unavailable");
+    expect(domain.persisted().ecosystem.world?.elapsedMs).toBe(0);
+    clock.set(new Date(NOW.getTime() + 32_000));
+    expect((await game.getSnapshot("session-1")).ecosystem.world?.elapsedMs).toBe(32_000 * 30);
+    expect(domain.persisted().ecosystem.world?.elapsedMs).toBe(32_000 * 30);
+  });
+
+  it("checkpoints a capped long absence immediately so repeated polls and restart cannot replay excess time", async () => {
+    const domain = new MemoryDomain(state());
+    const clock = new FixedClock(NOW);
+    const game = service(domain, clock);
+    await game.getSnapshot("session-1");
+    const later = new Date(NOW.getTime() + 48 * 60 * 60_000);
+    clock.set(later);
+    const resumed = await game.getSnapshot("session-1");
+    const cappedElapsed = 24 * 60 * 60_000 * 30;
+    expect(resumed.ecosystem.world).toMatchObject({ elapsedMs: cappedElapsed, lastRealAt: later.toISOString() });
+    expect(domain.writeCount).toBe(2);
+    expect((await service(domain, clock).getSnapshot("session-1")).ecosystem.world).toEqual(resumed.ecosystem.world);
+    clock.set(new Date(later.getTime() + 2_000));
+    expect((await game.getSnapshot("session-1")).ecosystem.world?.elapsedMs).toBe(cappedElapsed + 60_000);
+    expect(domain.writeCount).toBe(2);
+    clock.set(new Date(later.getTime() - 1_000));
+    expect((await game.getSnapshot("session-1")).ecosystem.world?.elapsedMs).toBe(cappedElapsed);
+    expect(domain.writeCount).toBe(2);
+  });
+
+  it("keeps daily coin grants on real dates when multiple game days pass", async () => {
+    const domain = new MemoryDomain(state());
+    const clock = new FixedClock(NOW);
+    const game = service(domain, clock);
+    await game.command(request("claimDaily", 901));
+    clock.set(new Date(NOW.getTime() + 96 * 60_000));
+    const later = await game.getSnapshot("session-1");
+    expect(later.ecosystem.world?.elapsedMs).toBe(48 * 60 * 60_000);
+    const daily = await game.command({ ...request("claimDaily", 902, 1), issuedAt: clock.now().toISOString() });
+    expect(daily.snapshot.wallet).toBe(3);
+    expect(daily.snapshot.revision).toBe(1);
   });
 
   it("does not backfill token rewards from session history older than seven days", async () => {
@@ -311,7 +565,7 @@ describe("authoritative game service", () => {
         supplies: { fishFeed: 1 },
         progress: { aquarium: 0 },
         lifecycle: {
-          fish: { clownfish: { growth: 0, boostedUntil: "2026-08-26T10:00:00.000Z" } },
+          fish: { clownfish: { growth: 0, boostedUntil: "2000-01-01T12:00:00.000Z" } },
         },
       },
     });

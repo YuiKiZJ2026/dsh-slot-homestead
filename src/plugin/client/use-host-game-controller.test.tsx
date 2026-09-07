@@ -12,6 +12,50 @@ afterEach(() => {
 });
 
 describe("useHostGameController", () => {
+  it("adopts the virtual epoch on migration and rejects stale pre-migration polls at the same revision", async () => {
+    const legacy = snapshot();
+    legacy.ecosystem.lifecycle.lastSimulatedAt = "2026-08-27T00:00:00.000Z";
+    const api = new RecordingApi(legacy);
+    const { result } = renderHook(() => useHostGameController(options(api)));
+    await waitFor(() => expect(result.current.snapshot?.revision).toBe(7));
+    const migrated = structuredClone(legacy);
+    migrated.ecosystem.world = { elapsedMs: 0, lastRealAt: "2026-08-27T00:00:00.000Z", seed: 42 };
+    migrated.ecosystem.lifecycle.lastSimulatedAt = "2000-01-01T06:00:00.000Z";
+    api.current = migrated;
+    await act(async () => { await result.current.refresh(); });
+    expect(result.current.gameState.ecosystem.world?.elapsedMs).toBe(0);
+    api.current = legacy;
+    await act(async () => { await result.current.refresh(); });
+    expect(result.current.gameState.ecosystem.world?.elapsedMs).toBe(0);
+    const progressed = structuredClone(migrated);
+    progressed.ecosystem.world!.elapsedMs = 30 * 60_000;
+    progressed.ecosystem.world!.lastRealAt = "2026-08-27T00:01:00.000Z";
+    api.current = progressed;
+    await act(async () => { await result.current.refresh(); });
+    api.current = migrated;
+    await act(async () => { await result.current.refresh(); });
+    expect(result.current.gameState.ecosystem.world?.elapsedMs).toBe(30 * 60_000);
+  });
+  it("binds merchant trades to the displayed visit and authoritative revision", async () => {
+    const api = new RecordingApi(snapshot(), request => ({ status: 200, snapshot: snapshot({ revision: request.expectedRevision + 1 }) }));
+    const { result } = renderHook(() => useHostGameController(options(api)));
+    await waitFor(() => expect(result.current.snapshot?.revision).toBe(7));
+    await act(async () => { await result.current.merchantBuy("fish-feed", "visit-1"); });
+    await act(async () => { await result.current.merchantSell("garden", "visit-1"); });
+    expect(api.requests).toEqual([
+      expect.objectContaining({ type: "merchantBuy", itemId: "fish-feed", visitId: "visit-1", expectedRevision: 7 }),
+      expect.objectContaining({ type: "merchantSell", habitat: "garden", visitId: "visit-1", expectedRevision: 8 }),
+    ]);
+  });
+  it("sends a revision-guarded next-crop cancellation for the chosen plot", async () => {
+    const api = new RecordingApi(snapshot(), () => ({ status: 200, snapshot: snapshot({ revision: 8 }) }));
+    const { result } = renderHook(() => useHostGameController(options(api)));
+    await waitFor(() => expect(result.current.snapshot?.revision).toBe(7));
+    await act(async () => { await result.current.cancelPlanting("3"); });
+    expect(api.requests).toHaveLength(1);
+    expect(api.requests[0]).toMatchObject({ type: "cancelPlanting", plotId: "3", expectedRevision: 7, sessionId: "session-1" });
+  });
+
   it("sends one revision-guarded collection command for the visible habitat", async () => {
     const api = new RecordingApi(snapshot(), () => ({
       status: 200,

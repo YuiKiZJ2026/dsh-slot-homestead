@@ -60,7 +60,7 @@ describe("published DSH bundle contract", () => {
 
     expect(manifest).toMatchObject({
       name: "dsh-slot-homestead",
-      version: "0.8.0-beta.2",
+      version: "0.9.0-preview.3",
       type: "module",
       main: "./lib/index.js",
       files: [

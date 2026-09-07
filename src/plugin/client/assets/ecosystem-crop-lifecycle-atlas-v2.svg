@@ -1,12 +1,14 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 800 1200" shape-rendering="crispEdges">
   <title>原创像素风作物四阶段生命周期图集</title>
   <defs>
+    <pattern id="leaf-veins" width="20" height="20" patternUnits="userSpaceOnUse"><rect width="20" height="20" fill="#4f8d3e"/><path d="M10 0v20M4 4h6M10 12h6" stroke="#6ca74d" stroke-width="2" fill="none"/></pattern>
+    <pattern id="cabbage-folds" width="24" height="20" patternUnits="userSpaceOnUse"><rect width="24" height="20" fill="#72a64e"/><path d="M2 4h10v4h8v10" stroke="#8fba62" stroke-width="3" fill="none"/></pattern>
     <style>
       .outline{fill:#542916}.outline2{fill:#71391c}.soil-dark{fill:#4a2719}.soil{fill:#75401f}.soil-light{fill:#a05d2b}
-      .stem-dark{fill:#285336}.stem{fill:#3f7540}.leaf-dark{fill:#2e6236}.leaf{fill:#4f8d3e}.leaf-light{fill:#78ad49}
+      .stem-dark{fill:#285336}.stem{fill:#3f7540}.leaf-dark{fill:#2e6236}.leaf{fill:url(#leaf-veins)}.leaf-light{fill:#78ad49}
       .carrot-dark{fill:#b64d18}.carrot{fill:#e87924}.carrot-light{fill:#ffad3d}
       .tomato-dark{fill:#9d2f25}.tomato{fill:#d94b31}.tomato-light{fill:#ff7850}.flower{fill:#f4d65a}
-      .cabbage-dark{fill:#477a3c}.cabbage{fill:#72a64e}.cabbage-light{fill:#a4c969}
+      .cabbage-dark{fill:#477a3c}.cabbage{fill:url(#cabbage-folds)}.cabbage-light{fill:#a4c969}
       .green-dark{fill:#34713e}.green{fill:#57a34a}.green-light{fill:#86c85c}
       .pumpkin-dark{fill:#9c491d}.pumpkin{fill:#d87525}.pumpkin-light{fill:#f6ac32}.star{fill:#ffe47a}
       .onion-dark{fill:#70416c}.onion{fill:#9c648e}.onion-light{fill:#d195b7}

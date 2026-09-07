@@ -224,6 +224,18 @@ async function main() {
 
     const restartedState = await getState(activeWeb.url);
     assertPersistedSnapshot(claimedState, restartedState);
+    const homesteadState = await exerciseHomestead(activeWeb.url, restartedState);
+    await stopWeb(activeWeb);
+    activeWeb = null;
+
+    activeWeb = await startWeb(dsh, environment);
+    const journalRestored = await getState(activeWeb.url);
+    assertPersistedSnapshot(homesteadState, journalRestored);
+    if (JSON.stringify(journalRestored.ecosystem?.journal) !== JSON.stringify(homesteadState.ecosystem.journal)
+      || journalRestored.ecosystem?.lifecycle?.plots?.["2"]?.seedId !== "carrot-seed"
+      || journalRestored.ecosystem?.supplies?.fertilizer !== 0) {
+      throw new Error("Real DSH restart lost journal rewards or the planted crop");
+    }
     await stopWeb(activeWeb);
     activeWeb = null;
 
@@ -284,6 +296,27 @@ async function claimDaily(baseUrl, initial) {
     }),
   }, "claimDaily route");
   return snapshotFromEnvelope(envelope, "claimDaily route");
+}
+
+async function exerciseHomestead(baseUrl, initial) {
+  let snapshot = initial;
+  for (const command of [
+    { type: "careHabitat", habitat: "aquarium" },
+    { type: "claimJournal", questId: "daily-care" },
+    { type: "plantCrop", plotId: "2", seedId: "carrot-seed" },
+  ]) {
+    const envelope = await requestJson(new URL("/api/dsh-slot-widget/command", baseUrl), {
+      method: "POST", headers: { "content-type": "application/json" },
+      body: JSON.stringify({ commandId: randomUUID(), sessionId: "real-dsh-smoke",
+        expectedRevision: snapshot.revision, issuedAt: new Date().toISOString(), ...command }),
+    }, command.type);
+    snapshot = snapshotFromEnvelope(envelope, command.type);
+  }
+  if (snapshot.ecosystem?.journal?.xp !== 10 || snapshot.ecosystem?.supplies?.fishFeed !== 1
+    || snapshot.ecosystem?.lifecycle?.plots?.["2"]?.seedId !== "carrot-seed") {
+    throw new Error("Real DSH journal and planting commands did not apply");
+  }
+  return snapshot;
 }
 
 async function dumpConfig(dsh, environment) {

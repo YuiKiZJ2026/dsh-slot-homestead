@@ -17,6 +17,17 @@ import { loadSceneAssets, type SceneAssets, type SceneAssetUrls } from "../../ga
 import type { GameApi } from "./api";
 import { TokenEnergyMeter } from "./TokenEnergyMeter";
 import { useHostGameController } from "./use-host-game-controller";
+import { HomesteadJournal } from "../../components/HomesteadJournal";
+import { CollectibleSprite } from "../../components/CollectionPanel";
+import { CATALOG_BY_ID } from "../../domain/catalog";
+import { getJournalQuests } from "../../ecosystem/journal";
+import { HOMESTEAD_STYLE } from "../../ui/homestead-style";
+import { HomesteadFeedback } from "../../components/HomesteadFeedback";
+import { WorldClock } from "../../components/WorldClock";
+import { MerchantPanel } from "../../components/MerchantPanel";
+import { worldDate, worldView } from "../../ecosystem/world-clock";
+import { resolveDayPhaseAtHour } from "../../time/day-phase";
+import { WORLD_STYLE } from "../../ui/world-style";
 
 type UtilityPanel = WorkbenchUtilityPanel;
 const COMPANION_BASE_WIDTH = 560;
@@ -44,15 +55,17 @@ export function PluginApp({
   ecosystemAssetUrls,
   loadAssets,
   displayMode = "page",
-  lightingClock = DEFAULT_LIGHTING_CLOCK,
+  lightingClock,
   refreshToken = 0,
 }: PluginAppProps) {
   const controller = useHostGameController({ api, sessionId });
   useEffect(() => {
     if (refreshToken > 0) void controller.refresh();
   }, [controller.refresh, refreshToken]);
-  const dayPhase = useDayPhase(lightingClock);
+  const previewPhase = useDayPhase(lightingClock ?? DEFAULT_LIGHTING_CLOCK);
+  const dayPhase = lightingClock ? previewPhase : resolveDayPhaseAtHour(worldView(controller.gameState.ecosystem.world).hour);
   const [utilityPanel, setUtilityPanel] = useState<UtilityPanel | null>(null);
+  const [journalChapter, setJournalChapter] = useState<"today" | "garden">("today");
   const [lastSpinResult, setLastSpinResult] = useState<ResolvedSpin | null>(null);
   const [companionViewport, setCompanionViewport] = useState(() => ({
     width: window.innerWidth,
@@ -83,6 +96,9 @@ export function PluginApp({
     [assetUrls, loadAssets],
   );
   const snapshot = controller.snapshot;
+  const journalDate = controller.gameState.ecosystem.world ? worldDate(controller.gameState.ecosystem.world).toISOString().slice(0,10) : snapshot?.localDate ?? new Date().toLocaleDateString("en-CA");
+  const readyQuests = getJournalQuests(controller.gameState, new Date(`${journalDate}T12:00:00`))
+    .filter(quest => !quest.claimed && quest.progress >= quest.target).length;
   const dailyTokenCoins = snapshot === null
     ? 0
     : snapshot.tokenEnergy.dailyCoins[snapshot.localDate] ?? 0;
@@ -139,13 +155,14 @@ export function PluginApp({
       aria-label="老虎机庄园｜桌面像素生态养成"
       data-display-mode={displayMode}
       data-day-phase={dayPhase}
+      data-reduced-motion={controller.gameState.settings.reducedMotion}
     >
       {displayMode === "companion" ? (
         <button type="button" className="edge-reveal-tab" aria-label="展开老虎机">◆</button>
       ) : null}
       <div className={displayMode === "companion" ? "companion-scale-surface" : "plugin-content-surface"}>
       <div className="desktop__ambient" aria-hidden="true" />
-      {displayMode === "page" ? <DaylightStatus phase={dayPhase} /> : null}
+      {displayMode === "page" ? <DaylightStatus phase={dayPhase} source={lightingClock ? "预览" : "庄园"} /> : null}
       <section className="host-status" role="region" aria-label="Host 游戏状态" aria-live="polite">
         <div className="wallet-status">
           <span>钱包</span>
@@ -163,6 +180,8 @@ export function PluginApp({
       </section>
 
       <div className="plugin-game-layout">
+        <style>{HOMESTEAD_STYLE}</style>
+        <style>{WORLD_STYLE}</style>
         <div className="slot-widget-frame">
           <section
             className="ecosystem-widget"
@@ -175,6 +194,7 @@ export function PluginApp({
               dayPhase={dayPhase}
               onCare={(habitat) => { void controller.care(habitat); }}
               onCollect={(habitat) => { void controller.collect(habitat); }}
+              onOpenPlanting={() => { setJournalChapter("garden"); setUtilityPanel("journal"); }}
               mutationsDisabled={controller.mutationsDisabled}
               assetUrls={ecosystemAssetUrls}
               nightSky={displayMode === "page" ? (
@@ -191,6 +211,14 @@ export function PluginApp({
                 <WorkbenchCommandBar
                   state={controller.gameState}
                   tokenProgress={snapshot?.tokenEnergy.progress}
+                  worldControl={<WorldClock ecosystem={controller.gameState.ecosystem} open={utilityPanel === "merchant"} onOpen={()=>toggleUtilityPanel("merchant")} />}
+                  journalControl={(
+                    <button type="button" className="journal-desk-book" aria-label="打开庄园手账" aria-expanded={utilityPanel === "journal"} onClick={() => { setJournalChapter("today"); toggleUtilityPanel("journal"); }} title="庄园手账 · 委托、足迹与种植计划">
+                      <CollectibleSprite item={CATALOG_BY_ID["book-stand"]} owned imageUrl={assetUrls.collectibles} />
+                      <span className="journal-desk-book__label">庄园手账</span>
+                      {readyQuests > 0 ? <span className="journal-desk-book__badge" aria-label={`${readyQuests}份奖励待领取`}>{readyQuests}</span> : null}
+                    </button>
+                  )}
                 />
               )}
             />
@@ -218,6 +246,13 @@ export function PluginApp({
           </section>
         </div>
         <div className="utility-panel-slot">
+          <MerchantPanel open={utilityPanel === "merchant"} state={controller.gameState} disabled={controller.mutationsDisabled} error={controller.error}
+            onClose={()=>setUtilityPanel(null)} onBuy={(id,visitId)=>{void controller.merchantBuy(id,visitId);}}
+            onSell={(habitat,visitId)=>{void controller.merchantSell(habitat,visitId);}} assetUrls={ecosystemAssetUrls} />
+          <HomesteadJournal open={utilityPanel === "journal"} state={controller.gameState} date={journalDate} initialChapter={journalChapter}
+            disabled={controller.mutationsDisabled} error={controller.error} onClose={() => setUtilityPanel(null)}
+            assetUrls={ecosystemAssetUrls} onCancelPlanting={plotId => { void controller.cancelPlanting(plotId); }} onHarvest={() => { void controller.collect("garden"); }}
+            onClaim={id => { void controller.claimJournal(id); }} onPlant={(plotId, seedId) => { void controller.plant(plotId, seedId); }} />
           <CollectionPanel
             open={utilityPanel === "collection"}
             state={controller.gameState}
@@ -233,6 +268,7 @@ export function PluginApp({
             onBuy={(itemId) => { void controller.buy(itemId); }}
             mutationsDisabled={controller.mutationsDisabled}
             collectiblesUrl={assetUrls.collectibles}
+            assetUrls={ecosystemAssetUrls}
           />
           <SettingsPanel
             open={utilityPanel === "settings"}
@@ -253,6 +289,7 @@ export function PluginApp({
           ) : null}
         </div>
       </div>
+      <HomesteadFeedback state={controller.gameState} ready={snapshot !== null} />
       </div>
       {displayMode === "companion" ? (["top-left", "top-right", "bottom-left", "bottom-right"] as const).map((corner) => (
         <span

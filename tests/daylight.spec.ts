@@ -91,10 +91,13 @@ for (const previewPath of ["/", "/native-preview.html"] as const) {
     await page.clock.setFixedTime(new Date("2026-08-31T22:30:00+08:00"));
     await page.goto(previewPath);
 
+    if (previewPath === "/native-preview.html") await page.getByRole("button", {name:"夜晚",exact:true}).click();
+
     const sky = page.locator('[data-night-sky="moon-stars"]');
     await expect(sky).toHaveCount(1);
     await expect(sky).toHaveAttribute("aria-hidden", "true");
     await expect(sky).toHaveAttribute("data-night-anchor", "workbench");
+    await expect.poll(()=>sky.evaluate(element=>Number(getComputedStyle(element).opacity))).toBeGreaterThan(0.5);
     const skyAppearance = await sky.evaluate((element) => ({
       opacity: Number(getComputedStyle(element).opacity),
       pointerEvents: getComputedStyle(element).pointerEvents,
@@ -316,6 +319,7 @@ for (const previewPath of ["/", "/native-preview.html"] as const) {
   test(`day hides the sky and lamp glow but keeps physical garden props on ${previewPath}`, async ({ page }) => {
     await page.clock.setFixedTime(new Date("2026-08-31T09:30:00+08:00"));
     await page.goto(previewPath);
+    if (previewPath === "/native-preview.html") await page.getByRole("button", {name:"白天",exact:true}).click();
 
     const sky = page.locator('[data-night-sky="moon-stars"]');
     await expect(sky).toHaveCount(1);
